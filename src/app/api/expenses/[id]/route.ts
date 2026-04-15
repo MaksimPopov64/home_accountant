@@ -19,13 +19,28 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
 
   const { amount, description, date, categoryId } = await req.json();
 
+  const parsedAmount = parseFloat(amount);
+  const parsedCategoryId = parseInt(categoryId);
+  if (!amount || isNaN(parsedAmount) || parsedAmount <= 0) {
+    return NextResponse.json({ error: "Сумма должна быть больше 0" }, { status: 400 });
+  }
+  if (!description || !String(description).trim()) {
+    return NextResponse.json({ error: "Описание обязательно" }, { status: 400 });
+  }
+  if (!date) {
+    return NextResponse.json({ error: "Дата обязательна" }, { status: 400 });
+  }
+  if (!categoryId || isNaN(parsedCategoryId)) {
+    return NextResponse.json({ error: "Категория обязательна" }, { status: 400 });
+  }
+
   const updated = await prisma.expense.update({
     where: { id: parseInt(params.id) },
     data: {
-      amount: parseFloat(amount),
-      description: description.trim(),
+      amount: parsedAmount,
+      description: String(description).trim(),
       date,
-      categoryId: parseInt(categoryId),
+      categoryId: parsedCategoryId,
     },
     include: {
       user: { select: { id: true, name: true, color: true } },

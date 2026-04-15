@@ -49,7 +49,8 @@ export async function POST(req: NextRequest) {
   if (!amount || !description || !date || !categoryId || !userId) {
     return NextResponse.json({ error: "Заполните все поля" }, { status: 400 });
   }
-  if (amount <= 0) {
+  const parsedAmount = parseFloat(amount);
+  if (isNaN(parsedAmount) || parsedAmount <= 0) {
     return NextResponse.json({ error: "Сумма должна быть больше 0" }, { status: 400 });
   }
 
@@ -58,8 +59,8 @@ export async function POST(req: NextRequest) {
 
   const expense = await prisma.expense.create({
     data: {
-      amount: parseFloat(amount),
-      description: description.trim(),
+      amount: parsedAmount,
+      description: String(description).trim(),
       date,
       userId: targetUserId,
       categoryId: parseInt(categoryId),

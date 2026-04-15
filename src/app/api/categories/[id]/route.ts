@@ -12,6 +12,9 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
   }
 
   const { name, icon, color } = await req.json();
+  if (!name || !String(name).trim()) {
+    return NextResponse.json({ error: "Название обязательно" }, { status: 400 });
+  }
   const cat = await prisma.category.update({
     where: { id: parseInt(params.id) },
     data: { name: name.trim(), icon, color },
