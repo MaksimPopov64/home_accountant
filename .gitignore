@@ -1,0 +1,18 @@
+# Next.js
+.next/
+out/
+
+# Node
+node_modules/
+
+# Database
+prisma/dev.db
+prisma/dev.db-journal
+*.db
+*.db-journal
+
+# Env (keep .env.local out of git, but .env is ok for DATABASE_URL)
+.env.local
+
+# OS
+.DS_Store

@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Семейный бюджет</title>
+  <link rel="stylesheet" href="/static/style.css" />
+</head>
+<body>
+  <div id="app">
+    <!-- Sidebar -->
+    <nav class="sidebar" id="sidebar">
+      <div class="sidebar-header">
+        <span class="logo">💰</span>
+        <span class="app-title">Семейный бюджет</span>
+      </div>
+      <ul class="nav-links">
+        <li><a href="#" class="nav-link active" data-page="dashboard">📊 Обзор</a></li>
+        <li><a href="#" class="nav-link" data-page="expenses">📋 Расходы</a></li>
+        <li><a href="#" class="nav-link" data-page="settings">⚙️ Настройки</a></li>
+      </ul>
+    </nav>
+
+    <!-- Main -->
+    <main class="main-content">
+      <header class="top-bar">
+        <button class="burger" id="burger">☰</button>
+        <h1 class="page-title" id="pageTitle">Обзор</h1>
+        <button class="btn btn-primary" id="addExpenseBtn">+ Добавить расход</button>
+      </header>
+
+      <div id="pageContent"></div>
+    </main>
+  </div>
+
+  <!-- Modal: Add/Edit Expense -->
+  <div class="modal-overlay" id="expenseModal" style="display:none">
+    <div class="modal">
+      <div class="modal-header">
+        <h2 id="modalTitle">Добавить расход</h2>
+        <button class="modal-close" id="modalClose">&times;</button>
+      </div>
+      <form id="expenseForm">
+        <input type="hidden" id="expenseId" />
+        <div class="form-row">
+          <label>Сумма (₽)</label>
+          <input type="number" id="expenseAmount" min="0.01" step="0.01" placeholder="0.00" required />
+        </div>
+        <div class="form-row">
+          <label>Описание</label>
+          <input type="text" id="expenseDesc" placeholder="Что куплено / за что оплачено" required />
+        </div>
+        <div class="form-row">
+          <label>Дата</label>
+          <input type="date" id="expenseDate" required />
+        </div>
+        <div class="form-row">
+          <label>Кто платил</label>
+          <select id="expensePerson" required></select>
+        </div>
+        <div class="form-row">
+          <label>Категория</label>
+          <select id="expenseCategory" required></select>
+        </div>
+        <div class="form-actions">
+          <button type="button" class="btn btn-ghost" id="cancelBtn">Отмена</button>
+          <button type="submit" class="btn btn-primary">Сохранить</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Modal: Add Person -->
+  <div class="modal-overlay" id="personModal" style="display:none">
+    <div class="modal modal-sm">
+      <div class="modal-header">
+        <h2 id="personModalTitle">Добавить участника</h2>
+        <button class="modal-close" onclick="closeModal('personModal')">&times;</button>
+      </div>
+      <form id="personForm">
+        <input type="hidden" id="personId" />
+        <div class="form-row">
+          <label>Имя</label>
+          <input type="text" id="personName" placeholder="Имя" required />
+        </div>
+        <div class="form-row">
+          <label>Цвет</label>
+          <input type="color" id="personColor" value="#6366f1" />
+        </div>
+        <div class="form-actions">
+          <button type="button" class="btn btn-ghost" onclick="closeModal('personModal')">Отмена</button>
+          <button type="submit" class="btn btn-primary">Сохранить</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Modal: Add Category -->
+  <div class="modal-overlay" id="categoryModal" style="display:none">
+    <div class="modal modal-sm">
+      <div class="modal-header">
+        <h2 id="categoryModalTitle">Добавить категорию</h2>
+        <button class="modal-close" onclick="closeModal('categoryModal')">&times;</button>
+      </div>
+      <form id="categoryForm">
+        <input type="hidden" id="categoryId" />
+        <div class="form-row">
+          <label>Название</label>
+          <input type="text" id="categoryName" placeholder="Название" required />
+        </div>
+        <div class="form-row">
+          <label>Эмодзи</label>
+          <input type="text" id="categoryIcon" placeholder="🛒" maxlength="4" />
+        </div>
+        <div class="form-row">
+          <label>Цвет</label>
+          <input type="color" id="categoryColor" value="#10b981" />
+        </div>
+        <div class="form-actions">
+          <button type="button" class="btn btn-ghost" onclick="closeModal('categoryModal')">Отмена</button>
+          <button type="submit" class="btn btn-primary">Сохранить</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <div class="toast" id="toast"></div>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>

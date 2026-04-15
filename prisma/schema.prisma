@@ -1,0 +1,39 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        Int       @id @default(autoincrement())
+  name      String
+  email     String    @unique
+  password  String
+  role      String    @default("MEMBER")
+  color     String    @default("#6366f1")
+  createdAt DateTime  @default(now())
+  expenses  Expense[]
+}
+
+model Category {
+  id       Int       @id @default(autoincrement())
+  name     String    @unique
+  icon     String    @default("💰")
+  color    String    @default("#10b981")
+  expenses Expense[]
+}
+
+model Expense {
+  id          Int      @id @default(autoincrement())
+  amount      Float
+  description String
+  date        String
+  createdAt   DateTime @default(now())
+  userId      Int
+  categoryId  Int
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  category    Category @relation(fields: [categoryId], references: [id])
+}
