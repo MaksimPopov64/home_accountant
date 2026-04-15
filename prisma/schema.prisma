@@ -3,10 +3,8 @@ generator client {
 }
 
 datasource db {
-  provider = "sqlite"
+  provider = "postgresql"
   url      = env("DATABASE_URL")
-  // prod:  DATABASE_URL="file:/data/prod.db"  (Fly.io persistent volume)
-  // local: DATABASE_URL="file:./dev.db"
 }
 
 model User {

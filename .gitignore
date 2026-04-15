@@ -11,7 +11,8 @@ prisma/dev.db-journal
 *.db
 *.db-journal
 
-# Env (keep .env.local out of git, but .env is ok for DATABASE_URL)
+# Env — содержит секреты, не коммитить
+.env
 .env.local
 
 # OS
