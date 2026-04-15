@@ -3,9 +3,15 @@
 import { useEffect, useState } from "react";
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
-import { Plus, Pencil, Trash2, Download, Users, Tag, ShieldCheck } from "lucide-react";
+import { Plus, Pencil, Trash2, Download, Users, Tag, ShieldCheck, Copy, Check } from "lucide-react";
 import AppLayout from "@/components/AppLayout";
 import type { Category, User } from "@/types";
+
+interface Household {
+  id: number;
+  name: string;
+  inviteCode: string;
+}
 
 const COLORS = [
   "#6366f1","#8b5cf6","#ec4899","#ef4444",
@@ -28,9 +34,11 @@ export default function AdminPage() {
   const { data: session, status } = useSession();
   const router = useRouter();
 
-  const [tab, setTab] = useState<"users" | "categories">("users");
+  const [tab, setTab] = useState<"users" | "categories" | "settings">("users");
   const [users, setUsers] = useState<User[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
+  const [household, setHousehold] = useState<Household | null>(null);
+  const [copied, setCopied] = useState(false);
 
   // User form
   const [editUser, setEditUser] = useState<User | null>(null);
@@ -55,8 +63,11 @@ export default function AdminPage() {
     if (status === "authenticated" && session?.user.role === "ADMIN") {
       loadUsers();
       loadCategories();
+      loadHousehold();
     }
   }, [status, session]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const loadHousehold = () => fetch("/api/households").then(r => r.json()).then(setHousehold);
 
   const loadUsers = () => fetch("/api/users").then(r => r.json()).then(setUsers);
   const loadCategories = () => fetch("/api/categories").then(r => r.json()).then(setCategories);
@@ -156,6 +167,19 @@ export default function AdminPage() {
           <Download size={16} />
           Скачать резервную копию
         </a>
+        {household && (
+          <button
+            onClick={() => {
+              navigator.clipboard.writeText(household.inviteCode);
+              setCopied(true);
+              setTimeout(() => setCopied(false), 2000);
+            }}
+            className="flex items-center gap-2 px-4 py-2 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 text-amber-400 text-sm font-semibold transition-colors"
+          >
+            {copied ? <Check size={16} /> : <Copy size={16} />}
+            Код: {household.inviteCode}
+          </button>
+        )}
       </div>
 
       {/* Tabs */}
@@ -175,6 +199,14 @@ export default function AdminPage() {
           }`}
         >
           <Tag size={15} /> Категории
+        </button>
+        <button
+          onClick={() => setTab("settings")}
+          className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-all ${
+            tab === "settings" ? "bg-indigo-500 text-white" : "text-slate-400 hover:text-slate-100"
+          }`}
+        >
+          <ShieldCheck size={15} /> Настройки
         </button>
       </div>
 
@@ -228,6 +260,35 @@ export default function AdminPage() {
                 </div>
               </div>
             ))}
+          </div>
+        </div>
+      )}
+
+      {/* Settings tab */}
+      {tab === "settings" && household && (
+        <div className="space-y-4">
+          <div className="p-5 bg-slate-800 border border-slate-700 rounded-xl">
+            <h3 className="text-sm font-semibold text-slate-300 mb-3">Код приглашения</h3>
+            <p className="text-xs text-slate-400 mb-3">Поделитесь этим кодом с другими членами семьи</p>
+            <div className="flex items-center gap-3">
+              <code className="flex-1 px-4 py-3 bg-slate-900 rounded-xl font-mono text-lg text-indigo-400">
+                {household.inviteCode}
+              </code>
+              <button
+                onClick={() => {
+                  navigator.clipboard.writeText(household.inviteCode);
+                  setCopied(true);
+                  setTimeout(() => setCopied(false), 2000);
+                }}
+                className="p-3 rounded-xl bg-indigo-500 hover:bg-indigo-600 text-white transition-colors"
+              >
+                {copied ? <Check size={18} /> : <Copy size={18} />}
+              </button>
+            </div>
+          </div>
+          <div className="p-5 bg-slate-800 border border-slate-700 rounded-xl">
+            <h3 className="text-sm font-semibold text-slate-300 mb-3">Название семьи</h3>
+            <p className="text-sm text-slate-100">{household.name}</p>
           </div>
         </div>
       )}

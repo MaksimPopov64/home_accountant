@@ -9,7 +9,12 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
   const session = await getServerSession(authOptions);
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const expense = await prisma.expense.findUnique({ where: { id: parseInt(params.id) } });
+  const householdId = parseInt(session.user.householdId);
+
+  // findFirst ensures the expense belongs to this household
+  const expense = await prisma.expense.findFirst({
+    where: { id: parseInt(params.id), householdId },
+  });
   if (!expense) return NextResponse.json({ error: "Не найден" }, { status: 404 });
 
   // Only admin or owner can edit
@@ -51,11 +56,15 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
   return NextResponse.json(updated);
 }
 
-export async function DELETE(req: NextRequest, { params }: { params: { id: string } }) {
+export async function DELETE(_req: NextRequest, { params }: { params: { id: string } }) {
   const session = await getServerSession(authOptions);
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const expense = await prisma.expense.findUnique({ where: { id: parseInt(params.id) } });
+  const householdId = parseInt(session.user.householdId);
+
+  const expense = await prisma.expense.findFirst({
+    where: { id: parseInt(params.id), householdId },
+  });
   if (!expense) return NextResponse.json({ error: "Не найден" }, { status: 404 });
 
   if (session.user.role !== "ADMIN" && expense.userId !== parseInt(session.user.id)) {

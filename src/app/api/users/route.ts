@@ -10,7 +10,9 @@ export async function GET() {
   const session = await getServerSession(authOptions);
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
+  const householdId = parseInt(session.user.householdId);
   const users = await prisma.user.findMany({
+    where: { householdId },
     select: { id: true, name: true, email: true, role: true, color: true, createdAt: true },
     orderBy: { name: "asc" },
   });
@@ -23,6 +25,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Только для администратора" }, { status: 403 });
   }
 
+  const householdId = parseInt(session.user.householdId);
   const { name, email, password, role, color } = await req.json();
   if (!name || !email || !password) {
     return NextResponse.json({ error: "Заполните все обязательные поля" }, { status: 400 });
@@ -38,6 +41,7 @@ export async function POST(req: NextRequest) {
         password: hash,
         role: role === "ADMIN" ? "ADMIN" : "MEMBER",
         color: color || "#6366f1",
+        householdId,
       },
       select: { id: true, name: true, email: true, role: true, color: true, createdAt: true },
     });

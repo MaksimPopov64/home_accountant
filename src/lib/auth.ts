@@ -30,6 +30,7 @@ export const authOptions: NextAuthOptions = {
           email: user.email,
           role: user.role,
           color: user.color,
+          householdId: String(user.householdId),
         };
       },
     }),
@@ -40,6 +41,7 @@ export const authOptions: NextAuthOptions = {
         token.id = user.id;
         token.role = (user as { role: string }).role;
         token.color = (user as { color: string }).color;
+        token.householdId = (user as { householdId: string }).householdId;
       }
       return token;
     },
@@ -48,6 +50,7 @@ export const authOptions: NextAuthOptions = {
         session.user.id = token.id as string;
         session.user.role = token.role as string;
         session.user.color = token.color as string;
+        session.user.householdId = token.householdId as string;
       }
       return session;
     },

@@ -1,5 +1,12 @@
 export type Role = "ADMIN" | "MEMBER";
 
+export interface Household {
+  id: number;
+  name: string;
+  inviteCode: string;
+  createdAt: string;
+}
+
 export interface User {
   id: number;
   name: string;
@@ -7,6 +14,7 @@ export interface User {
   role: Role;
   color: string;
   createdAt: string;
+  householdId: number;
 }
 
 export interface Category {
@@ -14,6 +22,7 @@ export interface Category {
   name: string;
   icon: string;
   color: string;
+  householdId: number;
 }
 
 export interface Expense {
@@ -24,6 +33,7 @@ export interface Expense {
   createdAt: string;
   userId: number;
   categoryId: number;
+  householdId: number;
   user: Pick<User, "id" | "name" | "color">;
   category: Category;
 }
@@ -41,6 +51,7 @@ declare module "next-auth" {
     id: string;
     role: string;
     color: string;
+    householdId: string;
   }
   interface Session {
     user: {
@@ -49,6 +60,7 @@ declare module "next-auth" {
       email: string;
       role: string;
       color: string;
+      householdId: string;
     };
   }
 }
@@ -58,5 +70,6 @@ declare module "next-auth/jwt" {
     id: string;
     role: string;
     color: string;
+    householdId: string;
   }
 }

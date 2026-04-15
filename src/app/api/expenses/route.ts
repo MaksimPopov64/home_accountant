@@ -9,15 +9,15 @@ export async function GET(req: NextRequest) {
   const session = await getServerSession(authOptions);
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
+  const householdId = parseInt(session.user.householdId);
   const { searchParams } = new URL(req.url);
   const userId = searchParams.get("userId");
   const categoryId = searchParams.get("categoryId");
   const dateFrom = searchParams.get("dateFrom");
   const dateTo = searchParams.get("dateTo");
 
-  const where: Record<string, unknown> = {};
+  const where: Record<string, unknown> = { householdId };
 
-  // Members can only see all expenses (dashboard transparency) but filter by own
   if (userId) where.userId = parseInt(userId);
   if (categoryId) where.categoryId = parseInt(categoryId);
   if (dateFrom || dateTo) {
@@ -43,6 +43,7 @@ export async function POST(req: NextRequest) {
   const session = await getServerSession(authOptions);
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
+  const householdId = parseInt(session.user.householdId);
   const body = await req.json();
   const { amount, description, date, categoryId, userId } = body;
 
@@ -64,6 +65,7 @@ export async function POST(req: NextRequest) {
       date,
       userId: targetUserId,
       categoryId: parseInt(categoryId),
+      householdId,
     },
     include: {
       user: { select: { id: true, name: true, color: true } },

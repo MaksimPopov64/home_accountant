@@ -110,7 +110,7 @@ export default function LoginPage() {
         </div>
 
         <p className="text-center text-xs text-slate-500 mt-4">
-          Нет аккаунта? Попросите администратора добавить вас
+          Нет аккаунта? <a href="/register" className="text-indigo-400 hover:text-indigo-300">Зарегистрироваться</a>
         </p>
       </div>
     </div>

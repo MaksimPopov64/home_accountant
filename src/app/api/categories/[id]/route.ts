@@ -11,22 +11,36 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
     return NextResponse.json({ error: "Только для администратора" }, { status: 403 });
   }
 
+  const householdId = parseInt(session.user.householdId);
   const { name, icon, color } = await req.json();
   if (!name || !String(name).trim()) {
     return NextResponse.json({ error: "Название обязательно" }, { status: 400 });
   }
+
+  // Ensure category belongs to this household
+  const existing = await prisma.category.findFirst({
+    where: { id: parseInt(params.id), householdId },
+  });
+  if (!existing) return NextResponse.json({ error: "Не найдена" }, { status: 404 });
+
   const cat = await prisma.category.update({
     where: { id: parseInt(params.id) },
-    data: { name: name.trim(), icon, color },
+    data: { name: String(name).trim(), icon, color },
   });
   return NextResponse.json(cat);
 }
 
-export async function DELETE(req: NextRequest, { params }: { params: { id: string } }) {
+export async function DELETE(_req: NextRequest, { params }: { params: { id: string } }) {
   const session = await getServerSession(authOptions);
   if (!session || session.user.role !== "ADMIN") {
     return NextResponse.json({ error: "Только для администратора" }, { status: 403 });
   }
+
+  const householdId = parseInt(session.user.householdId);
+  const existing = await prisma.category.findFirst({
+    where: { id: parseInt(params.id), householdId },
+  });
+  if (!existing) return NextResponse.json({ error: "Не найдена" }, { status: 404 });
 
   await prisma.category.delete({ where: { id: parseInt(params.id) } });
   return new NextResponse(null, { status: 204 });

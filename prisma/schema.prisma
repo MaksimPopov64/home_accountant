@@ -7,33 +7,51 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+model Household {
+  id         Int        @id @default(autoincrement())
+  name       String
+  inviteCode String     @unique
+  createdAt  DateTime   @default(now())
+  users      User[]
+  categories Category[]
+  expenses   Expense[]
+}
+
 model User {
-  id        Int       @id @default(autoincrement())
-  name      String
-  email     String    @unique
-  password  String
-  role      String    @default("MEMBER")
-  color     String    @default("#6366f1")
-  createdAt DateTime  @default(now())
-  expenses  Expense[]
+  id          Int       @id @default(autoincrement())
+  name        String
+  email       String    @unique
+  password    String
+  role        String    @default("MEMBER")
+  color       String    @default("#6366f1")
+  createdAt   DateTime  @default(now())
+  householdId Int
+  household   Household @relation(fields: [householdId], references: [id])
+  expenses    Expense[]
 }
 
 model Category {
-  id       Int       @id @default(autoincrement())
-  name     String    @unique
-  icon     String    @default("💰")
-  color    String    @default("#10b981")
-  expenses Expense[]
+  id          Int       @id @default(autoincrement())
+  name        String
+  icon        String    @default("💰")
+  color       String    @default("#10b981")
+  householdId Int
+  household   Household @relation(fields: [householdId], references: [id])
+  expenses    Expense[]
+
+  @@unique([name, householdId])
 }
 
 model Expense {
-  id          Int      @id @default(autoincrement())
+  id          Int       @id @default(autoincrement())
   amount      Float
   description String
   date        String
-  createdAt   DateTime @default(now())
+  createdAt   DateTime  @default(now())
   userId      Int
   categoryId  Int
-  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  category    Category @relation(fields: [categoryId], references: [id])
+  householdId Int
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  category    Category  @relation(fields: [categoryId], references: [id])
+  household   Household @relation(fields: [householdId], references: [id])
 }
