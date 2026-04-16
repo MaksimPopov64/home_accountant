@@ -8,7 +8,7 @@ import { Wallet, LogIn, Plus, ArrowRight, Eye, EyeOff } from "lucide-react";
 type Mode = "signup" | "select" | "create" | "join";
 
 export default function RegisterPage() {
-  const { data: session, status } = useSession();
+  const { data: session, status, update } = useSession();
   const router = useRouter();
 
   const [mode, setMode] = useState<Mode>("signup");
@@ -81,8 +81,9 @@ export default function RegisterPage() {
         const d = await res.json();
         throw new Error(d.error);
       }
+      const household = await res.json();
+      await update({ householdId: String(household.id), role: "ADMIN" });
       router.push("/");
-      router.refresh();
     } catch (err) {
       setError((err as Error).message);
     } finally {
@@ -105,8 +106,9 @@ export default function RegisterPage() {
         const d = await res.json();
         throw new Error(d.error);
       }
+      const household = await res.json();
+      await update({ householdId: String(household.id), role: "MEMBER" });
       router.push("/");
-      router.refresh();
     } catch (err) {
       setError((err as Error).message);
     } finally {

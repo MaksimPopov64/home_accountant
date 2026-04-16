@@ -36,12 +36,16 @@ export const authOptions: NextAuthOptions = {
     }),
   ],
   callbacks: {
-    async jwt({ token, user }) {
+    async jwt({ token, user, trigger, session }) {
       if (user) {
         token.id = user.id;
         token.role = (user as { role: string }).role;
         token.color = (user as { color: string }).color;
-        token.householdId = (user as { householdId: string }).householdId;
+        token.householdId = (user as { householdId: string | null }).householdId;
+      }
+      if (trigger === "update" && session) {
+        if (session.householdId !== undefined) token.householdId = session.householdId;
+        if (session.role !== undefined) token.role = session.role;
       }
       return token;
     },
