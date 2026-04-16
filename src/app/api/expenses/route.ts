@@ -7,7 +7,7 @@ import { prisma } from "@/lib/prisma";
 
 export async function GET(req: NextRequest) {
   const session = await getServerSession(authOptions);
-  if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (!session || !session.user.householdId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const householdId = parseInt(session.user.householdId);
   const { searchParams } = new URL(req.url);
@@ -41,7 +41,7 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   const session = await getServerSession(authOptions);
-  if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (!session || !session.user.householdId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const householdId = parseInt(session.user.householdId);
   const body = await req.json();

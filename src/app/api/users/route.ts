@@ -8,7 +8,7 @@ import bcrypt from "bcryptjs";
 
 export async function GET() {
   const session = await getServerSession(authOptions);
-  if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (!session || !session.user.householdId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const householdId = parseInt(session.user.householdId);
   const users = await prisma.user.findMany({
@@ -21,7 +21,7 @@ export async function GET() {
 
 export async function POST(req: NextRequest) {
   const session = await getServerSession(authOptions);
-  if (!session || session.user.role !== "ADMIN") {
+  if (!session || !session.user.householdId || session.user.role !== "ADMIN") {
     return NextResponse.json({ error: "Только для администратора" }, { status: 403 });
   }
 

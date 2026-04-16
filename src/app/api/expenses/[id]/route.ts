@@ -7,7 +7,7 @@ import { prisma } from "@/lib/prisma";
 
 export async function PUT(req: NextRequest, { params }: { params: { id: string } }) {
   const session = await getServerSession(authOptions);
-  if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (!session || !session.user.householdId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const householdId = parseInt(session.user.householdId);
 
@@ -58,7 +58,7 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
 
 export async function DELETE(_req: NextRequest, { params }: { params: { id: string } }) {
   const session = await getServerSession(authOptions);
-  if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (!session || !session.user.householdId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const householdId = parseInt(session.user.householdId);
 

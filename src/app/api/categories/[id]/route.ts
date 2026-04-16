@@ -7,7 +7,7 @@ import { prisma } from "@/lib/prisma";
 
 export async function PUT(req: NextRequest, { params }: { params: { id: string } }) {
   const session = await getServerSession(authOptions);
-  if (!session || session.user.role !== "ADMIN") {
+  if (!session || !session.user.householdId || session.user.role !== "ADMIN") {
     return NextResponse.json({ error: "Только для администратора" }, { status: 403 });
   }
 
@@ -32,7 +32,7 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
 
 export async function DELETE(_req: NextRequest, { params }: { params: { id: string } }) {
   const session = await getServerSession(authOptions);
-  if (!session || session.user.role !== "ADMIN") {
+  if (!session || !session.user.householdId || session.user.role !== "ADMIN") {
     return NextResponse.json({ error: "Только для администратора" }, { status: 403 });
   }
 

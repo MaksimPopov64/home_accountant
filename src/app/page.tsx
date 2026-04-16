@@ -58,6 +58,7 @@ export default function DashboardPage() {
     }
   }, [status, session, router]);
 
+
   useEffect(() => {
     if (status === "authenticated") {
       loadDashboard();

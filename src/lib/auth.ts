@@ -30,7 +30,7 @@ export const authOptions: NextAuthOptions = {
           email: user.email,
           role: user.role,
           color: user.color,
-          householdId: String(user.householdId),
+          householdId: user.householdId ? String(user.householdId) : null,
         };
       },
     }),

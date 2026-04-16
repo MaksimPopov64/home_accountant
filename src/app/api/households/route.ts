@@ -8,7 +8,7 @@ import { randomBytes } from "crypto";
 
 export async function GET() {
   const session = await getServerSession(authOptions);
-  if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (!session || !session.user.householdId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const householdId = parseInt(session.user.householdId);
   const household = await prisma.household.findUnique({
