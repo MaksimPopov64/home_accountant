@@ -50,7 +50,13 @@ export default function DashboardPage() {
 
   useEffect(() => {
     if (status === "unauthenticated") router.push("/login");
-  }, [status, router]);
+    if (status === "authenticated") {
+      const hId = session?.user?.householdId;
+      if (!hId || hId === "null" || hId === "undefined") {
+        router.push("/register");
+      }
+    }
+  }, [status, session, router]);
 
   useEffect(() => {
     if (status === "authenticated") {

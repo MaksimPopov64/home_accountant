@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
-import { Wallet, Users, LogIn, Plus, ArrowRight } from "lucide-react";
+import { Wallet, LogIn, Plus, ArrowRight } from "lucide-react";
 
 export default function RegisterPage() {
   const { data: session, status } = useSession();
@@ -16,6 +16,9 @@ export default function RegisterPage() {
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
+    if (status === "unauthenticated") {
+      router.push("/login");
+    }
     if (status === "authenticated") {
       const hId = session?.user?.householdId;
       if (hId && hId !== "undefined" && hId !== "null") {
