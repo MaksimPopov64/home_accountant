@@ -12,7 +12,7 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
   }
 
   const householdId = parseInt(session.user.householdId);
-  const { name, icon, color } = await req.json();
+  const { name, icon, color, monthlyBudget } = await req.json();
   if (!name || !String(name).trim()) {
     return NextResponse.json({ error: "Название обязательно" }, { status: 400 });
   }
@@ -25,7 +25,12 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
 
   const cat = await prisma.category.update({
     where: { id: parseInt(params.id) },
-    data: { name: String(name).trim(), icon, color },
+    data: {
+      name: String(name).trim(),
+      icon,
+      color,
+      monthlyBudget: monthlyBudget ? parseFloat(monthlyBudget) : null,
+    },
   });
   return NextResponse.json(cat);
 }

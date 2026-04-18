@@ -27,7 +27,7 @@ interface UserFormData {
   name: string; email: string; password: string; role: string; color: string;
 }
 interface CatFormData {
-  name: string; icon: string; color: string;
+  name: string; icon: string; color: string; monthlyBudget: string;
 }
 
 export default function AdminPage() {
@@ -50,7 +50,7 @@ export default function AdminPage() {
   // Category form
   const [editCat, setEditCat] = useState<Category | null>(null);
   const [showCatForm, setShowCatForm] = useState(false);
-  const [catForm, setCatForm] = useState<CatFormData>({ name:"", icon:"💰", color:"#10b981" });
+  const [catForm, setCatForm] = useState<CatFormData>({ name:"", icon:"💰", color:"#10b981", monthlyBudget:"" });
   const [catErr, setCatErr] = useState("");
   const [catSaving, setCatSaving] = useState(false);
 
@@ -112,13 +112,13 @@ export default function AdminPage() {
   // ── Category CRUD ──────────────────────────────────────────────────────────
   function openAddCat() {
     setEditCat(null);
-    setCatForm({ name:"", icon:"💰", color:"#10b981" });
+    setCatForm({ name:"", icon:"💰", color:"#10b981", monthlyBudget:"" });
     setCatErr("");
     setShowCatForm(true);
   }
   function openEditCat(c: Category) {
     setEditCat(c);
-    setCatForm({ name:c.name, icon:c.icon, color:c.color });
+    setCatForm({ name:c.name, icon:c.icon, color:c.color, monthlyBudget: c.monthlyBudget ? String(c.monthlyBudget) : "" });
     setCatErr("");
     setShowCatForm(true);
   }
@@ -130,7 +130,10 @@ export default function AdminPage() {
       const res = await fetch(editCat ? `/api/categories/${editCat.id}` : "/api/categories", {
         method: editCat ? "PUT" : "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(catForm),
+        body: JSON.stringify({
+          ...catForm,
+          monthlyBudget: catForm.monthlyBudget ? parseFloat(catForm.monthlyBudget) : null,
+        }),
       });
       if (!res.ok) { const d = await res.json(); throw new Error(d.error); }
       setShowCatForm(false);
@@ -314,7 +317,14 @@ export default function AdminPage() {
                 >
                   {c.icon}
                 </div>
-                <span className="flex-1 text-sm font-semibold text-slate-100">{c.name}</span>
+                <div className="flex-1 min-w-0">
+                  <span className="text-sm font-semibold text-slate-100">{c.name}</span>
+                  {c.monthlyBudget ? (
+                    <p className="text-xs text-slate-400">
+                      бюджет {new Intl.NumberFormat("ru-RU", { style:"currency", currency:"RUB", maximumFractionDigits:0 }).format(c.monthlyBudget)}/мес
+                    </p>
+                  ) : null}
+                </div>
                 <div className="w-3 h-3 rounded-full flex-shrink-0" style={{ background: c.color }} />
                 <div className="flex gap-1">
                   <button
@@ -429,6 +439,18 @@ export default function AdminPage() {
                 <input type="text" value={catForm.icon} onChange={e => setCatForm({...catForm, icon: e.target.value})}
                   maxLength={4} placeholder="🛒"
                   className="w-full bg-slate-900/60 border border-slate-600 text-slate-100 rounded-xl px-4 py-2.5 text-xl" />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1.5">
+                  Бюджет в месяц (₽, необязательно)
+                </label>
+                <input
+                  type="number" min="0" step="100"
+                  value={catForm.monthlyBudget}
+                  onChange={e => setCatForm({...catForm, monthlyBudget: e.target.value})}
+                  placeholder="например, 15000"
+                  className="w-full bg-slate-900/60 border border-slate-600 text-slate-100 rounded-xl px-4 py-2.5"
+                />
               </div>
               <div>
                 <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Цвет</label>

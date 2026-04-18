@@ -31,13 +31,14 @@ model User {
 }
 
 model Category {
-  id          Int       @id @default(autoincrement())
-  name        String
-  icon        String    @default("💰")
-  color       String    @default("#10b981")
-  householdId Int
-  household   Household @relation(fields: [householdId], references: [id])
-  expenses    Expense[]
+  id             Int       @id @default(autoincrement())
+  name           String
+  icon           String    @default("💰")
+  color          String    @default("#10b981")
+  monthlyBudget  Float?
+  householdId    Int
+  household      Household @relation(fields: [householdId], references: [id])
+  expenses       Expense[]
 
   @@unique([name, householdId])
 }

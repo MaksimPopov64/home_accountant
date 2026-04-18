@@ -3,13 +3,14 @@
 import { useEffect, useState } from "react";
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
-import { Plus, TrendingDown, Users, Tag } from "lucide-react";
+import { Plus, TrendingDown, Users, Tag, Zap, TrendingUp, CalendarDays } from "lucide-react";
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell,
+  LineChart, Line, CartesianGrid, ReferenceLine,
 } from "recharts";
 import AppLayout from "@/components/AppLayout";
 import ExpenseModal from "@/components/ExpenseModal";
-import type { Category, DashboardData, Expense, User } from "@/types";
+import type { Category, DashboardData, Expense, TrendPoint, User } from "@/types";
 
 const fmt = (n: number) =>
   new Intl.NumberFormat("ru-RU", { style: "currency", currency: "RUB", maximumFractionDigits: 0 }).format(n);
@@ -44,6 +45,7 @@ export default function DashboardPage() {
   const [period, setPeriod] = useState("month");
   const [myOnly, setMyOnly] = useState(false);
   const [data, setData] = useState<DashboardData | null>(null);
+  const [trend, setTrend] = useState<TrendPoint[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [users, setUsers] = useState<User[]>([]);
   const [showModal, setShowModal] = useState(false);
@@ -58,12 +60,12 @@ export default function DashboardPage() {
     }
   }, [status, session, router]);
 
-
   useEffect(() => {
     if (status === "authenticated") {
       loadDashboard();
       fetch("/api/categories").then((r) => r.json()).then(setCategories);
       fetch("/api/users").then((r) => r.json()).then(setUsers);
+      fetch("/api/analytics").then((r) => r.json()).then((d) => setTrend(d.trend ?? []));
     }
   }, [status, period, myOnly]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -81,6 +83,8 @@ export default function DashboardPage() {
   if (status === "loading" || !session) return null;
 
   const maxCat = data?.byCategory[0]?.total || 1;
+  const pred = data?.prediction;
+  const trendMax = trend.length ? Math.max(...trend.map((t) => t.total), 1) : 1;
 
   return (
     <AppLayout>
@@ -88,9 +92,7 @@ export default function DashboardPage() {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6">
         <div>
           <h1 className="text-xl font-bold text-slate-100">Обзор</h1>
-          <p className="text-sm text-slate-400 mt-0.5">
-            Привет, {session.user.name}!
-          </p>
+          <p className="text-sm text-slate-400 mt-0.5">Привет, {session.user.name}!</p>
         </div>
         <button
           onClick={() => setShowModal(true)}
@@ -156,29 +158,88 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* Charts */}
+      {/* Prediction banner — only for current month */}
+      {pred && (
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
+          <div className="bg-amber-500/10 border border-amber-500/30 rounded-2xl p-5">
+            <div className="flex items-center gap-2.5 mb-3">
+              <div className="w-8 h-8 rounded-lg bg-amber-500/20 flex items-center justify-center">
+                <Zap size={16} className="text-amber-400" />
+              </div>
+              <span className="text-xs font-semibold text-amber-400 uppercase tracking-wider">Прогноз</span>
+            </div>
+            <div className="text-2xl font-extrabold text-slate-100">{fmt(pred.projected)}</div>
+            <p className="text-xs text-slate-400 mt-1">к концу месяца</p>
+          </div>
+
+          <div className="bg-slate-800 border border-slate-700 rounded-2xl p-5">
+            <div className="flex items-center gap-2.5 mb-3">
+              <div className="w-8 h-8 rounded-lg bg-sky-500/20 flex items-center justify-center">
+                <TrendingUp size={16} className="text-sky-400" />
+              </div>
+              <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">В день</span>
+            </div>
+            <div className="text-2xl font-extrabold text-slate-100">{fmt(pred.dailyRate)}</div>
+            <p className="text-xs text-slate-400 mt-1">средний расход</p>
+          </div>
+
+          <div className="bg-slate-800 border border-slate-700 rounded-2xl p-5">
+            <div className="flex items-center gap-2.5 mb-3">
+              <div className="w-8 h-8 rounded-lg bg-violet-500/20 flex items-center justify-center">
+                <CalendarDays size={16} className="text-violet-400" />
+              </div>
+              <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Осталось</span>
+            </div>
+            <div className="text-2xl font-extrabold text-slate-100">{pred.daysLeft} дн.</div>
+            <p className="text-xs text-slate-400 mt-1">до конца месяца</p>
+          </div>
+        </div>
+      )}
+
+      {/* Charts row */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 mb-6">
-        {/* By Category bar chart */}
+        {/* By Category bar chart with budget */}
         <div className="bg-slate-800 border border-slate-700 rounded-2xl p-5">
           <h2 className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-4">По категориям</h2>
           {data?.byCategory.length ? (
             <div className="space-y-3">
-              {data.byCategory.map((c) => (
-                <div key={c.name}>
-                  <div className="flex justify-between items-center mb-1 text-sm">
-                    <span className="flex items-center gap-1.5 text-slate-200">
-                      <span>{c.icon}</span> {c.name}
-                    </span>
-                    <span className="font-bold text-slate-100">{fmt(c.total)}</span>
+              {data.byCategory.map((c) => {
+                const budget = c.monthlyBudget;
+                const pct = budget ? Math.min((c.total / budget) * 100, 100) : (c.total / maxCat) * 100;
+                const over = budget && c.total > budget;
+                return (
+                  <div key={c.name}>
+                    <div className="flex justify-between items-center mb-1 text-sm">
+                      <span className="flex items-center gap-1.5 text-slate-200">
+                        <span>{c.icon}</span> {c.name}
+                      </span>
+                      <div className="flex items-center gap-2">
+                        {budget && (
+                          <span className={`text-xs font-medium ${over ? "text-rose-400" : "text-slate-400"}`}>
+                            {over ? `+${fmt(c.total - budget)}` : `${fmt(budget - c.total)} осталось`}
+                          </span>
+                        )}
+                        <span className="font-bold text-slate-100">{fmt(c.total)}</span>
+                      </div>
+                    </div>
+                    <div className="h-2 bg-slate-700 rounded-full overflow-hidden">
+                      <div
+                        className="h-full rounded-full transition-all duration-500"
+                        style={{
+                          width: `${pct}%`,
+                          background: over ? "#ef4444" : c.color,
+                        }}
+                      />
+                    </div>
+                    {budget && (
+                      <div className="flex justify-between text-xs text-slate-500 mt-0.5">
+                        <span>{Math.round(pct)}%</span>
+                        <span>бюджет {fmt(budget)}</span>
+                      </div>
+                    )}
                   </div>
-                  <div className="h-2 bg-slate-700 rounded-full overflow-hidden">
-                    <div
-                      className="h-full rounded-full transition-all duration-500"
-                      style={{ width: `${(c.total / maxCat) * 100}%`, background: c.color }}
-                    />
-                  </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           ) : (
             <p className="text-slate-500 text-sm text-center py-6">Нет данных за период</p>
@@ -210,6 +271,48 @@ export default function DashboardPage() {
           )}
         </div>
       </div>
+
+      {/* 6-month trend chart */}
+      {trend.length > 0 && (
+        <div className="bg-slate-800 border border-slate-700 rounded-2xl p-5 mb-6">
+          <h2 className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-4">Динамика за 6 месяцев</h2>
+          <ResponsiveContainer width="100%" height={180}>
+            <LineChart data={trend} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" />
+              <XAxis dataKey="month" tick={{ fill: "#94a3b8", fontSize: 12 }} axisLine={false} tickLine={false} />
+              <YAxis
+                tick={{ fill: "#64748b", fontSize: 11 }}
+                axisLine={false}
+                tickLine={false}
+                tickFormatter={(v) => `${Math.round(v / 1000)}к`}
+                width={36}
+              />
+              <Tooltip
+                contentStyle={{ background: "#1e293b", border: "1px solid #334155", borderRadius: 8 }}
+                labelStyle={{ color: "#f1f5f9", fontSize: 12 }}
+                formatter={(v: number) => [fmt(v), "Расходы"]}
+              />
+              {/* average reference line */}
+              {trendMax > 0 && (
+                <ReferenceLine
+                  y={Math.round(trend.reduce((s, t) => s + t.total, 0) / trend.filter((t) => t.total > 0).length || 0)}
+                  stroke="#6366f1"
+                  strokeDasharray="4 4"
+                  label={{ value: "avg", fill: "#6366f1", fontSize: 10 }}
+                />
+              )}
+              <Line
+                type="monotone"
+                dataKey="total"
+                stroke="#6366f1"
+                strokeWidth={2.5}
+                dot={{ fill: "#6366f1", r: 4, strokeWidth: 0 }}
+                activeDot={{ r: 6, fill: "#818cf8" }}
+              />
+            </LineChart>
+          </ResponsiveContainer>
+        </div>
+      )}
 
       {/* Recent expenses */}
       <div className="bg-slate-800 border border-slate-700 rounded-2xl p-5">

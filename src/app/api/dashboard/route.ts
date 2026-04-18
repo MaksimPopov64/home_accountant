@@ -35,13 +35,19 @@ export async function GET(req: NextRequest) {
   const total = expenses.reduce((s, e) => s + e.amount, 0);
 
   // By category
-  const catMap = new Map<number, { name: string; icon: string; color: string; total: number }>();
+  const catMap = new Map<number, { name: string; icon: string; color: string; monthlyBudget: number | null; total: number }>();
   for (const e of expenses) {
     const existing = catMap.get(e.categoryId);
     if (existing) {
       existing.total += e.amount;
     } else {
-      catMap.set(e.categoryId, { name: e.category.name, icon: e.category.icon, color: e.category.color, total: e.amount });
+      catMap.set(e.categoryId, {
+        name: e.category.name,
+        icon: e.category.icon,
+        color: e.category.color,
+        monthlyBudget: e.category.monthlyBudget,
+        total: e.amount,
+      });
     }
   }
   const byCategory = [...catMap.values()].sort((a, b) => b.total - a.total);
@@ -60,5 +66,21 @@ export async function GET(req: NextRequest) {
 
   const recentExpenses = expenses.slice(0, 10);
 
-  return NextResponse.json({ total, byCategory, byUser, recentExpenses });
+  // Prediction (only meaningful for current month range)
+  let prediction: { dailyRate: number; projected: number; daysLeft: number } | undefined;
+  const now = new Date();
+  const isCurrentMonth =
+    dateFrom === new Date(now.getFullYear(), now.getMonth(), 1).toISOString().slice(0, 10) &&
+    dateTo === now.toISOString().slice(0, 10);
+
+  if (isCurrentMonth && total > 0) {
+    const dayOfMonth = now.getDate();
+    const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+    const dailyRate = total / dayOfMonth;
+    const projected = Math.round(dailyRate * daysInMonth);
+    const daysLeft = daysInMonth - dayOfMonth;
+    prediction = { dailyRate: Math.round(dailyRate), projected, daysLeft };
+  }
+
+  return NextResponse.json({ total, byCategory, byUser, recentExpenses, prediction });
 }

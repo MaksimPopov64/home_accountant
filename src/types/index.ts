@@ -22,6 +22,7 @@ export interface Category {
   name: string;
   icon: string;
   color: string;
+  monthlyBudget?: number | null;
   householdId: number;
 }
 
@@ -38,11 +39,23 @@ export interface Expense {
   category: Category;
 }
 
+export interface TrendPoint {
+  month: string;
+  total: number;
+}
+
+export interface Prediction {
+  dailyRate: number;
+  projected: number;
+  daysLeft: number;
+}
+
 export interface DashboardData {
   total: number;
-  byCategory: { name: string; icon: string; color: string; total: number }[];
+  byCategory: { name: string; icon: string; color: string; total: number; monthlyBudget?: number | null }[];
   byUser: { name: string; color: string; total: number }[];
   recentExpenses: Expense[];
+  prediction?: Prediction;
 }
 
 // Extend next-auth types
