@@ -51,8 +51,7 @@ export default function ExpensesPage() {
     if (filterFrom) params.set("dateFrom", filterFrom);
     if (filterTo)   params.set("dateTo", filterTo);
     const res = await fetch(`/api/expenses?${params}`);
-    const data = await res.json();
-    setExpenses(data);
+    setExpenses(await res.json());
     setLoading(false);
   }
 
@@ -73,13 +72,11 @@ export default function ExpensesPage() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6">
         <div>
-          <h1 className="text-xl font-bold text-slate-100">Расходы</h1>
+          <h1 className="text-xl font-bold text-slate-900 dark:text-slate-100">Расходы</h1>
           {expenses.length > 0 && (
-            <p className="text-sm text-slate-400 mt-0.5">
+            <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">
               {expenses.length} записей · итого{" "}
-              <span className="font-semibold text-slate-200">
-                {fmt(totalFiltered)}
-              </span>
+              <span className="font-semibold text-slate-800 dark:text-slate-200">{fmt(totalFiltered)}</span>
             </p>
           )}
         </div>
@@ -93,11 +90,11 @@ export default function ExpensesPage() {
       </div>
 
       {/* Filters */}
-      <div className="flex flex-wrap gap-2 mb-5">
+      <div className="grid grid-cols-2 sm:flex sm:flex-wrap gap-2 mb-5">
         <select
           value={filterUser}
           onChange={(e) => setFilterUser(e.target.value)}
-          className="bg-slate-800 border border-slate-700 text-slate-200 rounded-xl px-3 py-2 text-sm"
+          className="w-full sm:w-auto bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-200 rounded-xl px-3 py-2 text-sm"
         >
           <option value="">Все участники</option>
           {users.map((u) => <option key={u.id} value={u.id}>{u.name}</option>)}
@@ -105,29 +102,33 @@ export default function ExpensesPage() {
         <select
           value={filterCat}
           onChange={(e) => setFilterCat(e.target.value)}
-          className="bg-slate-800 border border-slate-700 text-slate-200 rounded-xl px-3 py-2 text-sm"
+          className="w-full sm:w-auto bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-200 rounded-xl px-3 py-2 text-sm"
         >
           <option value="">Все категории</option>
           {categories.map((c) => <option key={c.id} value={c.id}>{c.icon} {c.name}</option>)}
         </select>
-        <input
-          type="date"
-          value={filterFrom}
-          onChange={(e) => setFilterFrom(e.target.value)}
-          className="bg-slate-800 border border-slate-700 text-slate-200 rounded-xl px-3 py-2 text-sm"
-          title="Дата с"
-        />
-        <input
-          type="date"
-          value={filterTo}
-          onChange={(e) => setFilterTo(e.target.value)}
-          className="bg-slate-800 border border-slate-700 text-slate-200 rounded-xl px-3 py-2 text-sm"
-          title="Дата по"
-        />
+        <label className="flex items-center gap-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-sm focus-within:border-indigo-500 transition-colors cursor-pointer">
+          <span className="text-slate-500 dark:text-slate-500 font-semibold text-xs uppercase tracking-wider select-none whitespace-nowrap">С</span>
+          <input
+            type="date"
+            value={filterFrom}
+            onChange={(e) => setFilterFrom(e.target.value)}
+            className="bg-transparent text-slate-800 dark:text-slate-200 text-sm outline-none min-w-0 flex-1"
+          />
+        </label>
+        <label className="flex items-center gap-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-sm focus-within:border-indigo-500 transition-colors cursor-pointer">
+          <span className="text-slate-500 dark:text-slate-500 font-semibold text-xs uppercase tracking-wider select-none whitespace-nowrap">По</span>
+          <input
+            type="date"
+            value={filterTo}
+            onChange={(e) => setFilterTo(e.target.value)}
+            className="bg-transparent text-slate-800 dark:text-slate-200 text-sm outline-none min-w-0 flex-1"
+          />
+        </label>
         {(filterUser || filterCat || filterFrom || filterTo) && (
           <button
             onClick={() => { setFilterUser(""); setFilterCat(""); setFilterFrom(""); setFilterTo(""); }}
-            className="px-3 py-2 rounded-xl text-sm text-slate-400 hover:text-slate-100 bg-slate-800 border border-slate-700 transition-colors"
+            className="col-span-2 sm:col-span-1 px-3 py-2 rounded-xl text-sm text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 transition-colors"
           >
             Сбросить
           </button>
@@ -135,13 +136,13 @@ export default function ExpensesPage() {
       </div>
 
       {/* Table */}
-      <div className="bg-slate-800 border border-slate-700 rounded-2xl overflow-hidden">
+      <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl overflow-hidden">
         {loading ? (
-          <div className="text-center py-16 text-slate-500">Загрузка…</div>
+          <div className="text-center py-16 text-slate-500 dark:text-slate-400">Загрузка…</div>
         ) : expenses.length === 0 ? (
           <div className="text-center py-16">
             <div className="text-4xl mb-3">📭</div>
-            <p className="text-slate-400">Расходов нет</p>
+            <p className="text-slate-500 dark:text-slate-400">Расходов нет</p>
           </div>
         ) : (
           <>
@@ -149,20 +150,20 @@ export default function ExpensesPage() {
             <div className="hidden sm:block overflow-x-auto">
               <table className="w-full">
                 <thead>
-                  <tr className="border-b border-slate-700">
-                    <th className="text-left text-xs font-semibold text-slate-500 uppercase tracking-wider px-5 py-3">Дата</th>
-                    <th className="text-left text-xs font-semibold text-slate-500 uppercase tracking-wider px-5 py-3">Описание</th>
-                    <th className="text-left text-xs font-semibold text-slate-500 uppercase tracking-wider px-5 py-3">Категория</th>
-                    <th className="text-left text-xs font-semibold text-slate-500 uppercase tracking-wider px-5 py-3">Кто</th>
-                    <th className="text-right text-xs font-semibold text-slate-500 uppercase tracking-wider px-5 py-3">Сумма</th>
+                  <tr className="border-b border-slate-200 dark:border-slate-700">
+                    <th className="text-left text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider px-5 py-3">Дата</th>
+                    <th className="text-left text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider px-5 py-3">Описание</th>
+                    <th className="text-left text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider px-5 py-3">Категория</th>
+                    <th className="text-left text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider px-5 py-3">Кто</th>
+                    <th className="text-right text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider px-5 py-3">Сумма</th>
                     <th className="px-5 py-3"></th>
                   </tr>
                 </thead>
                 <tbody>
                   {expenses.map((e) => (
-                    <tr key={e.id} className="border-b border-slate-700/50 hover:bg-slate-700/30 transition-colors">
-                      <td className="px-5 py-3.5 text-sm text-slate-300">{fmtDate(e.date)}</td>
-                      <td className="px-5 py-3.5 text-sm text-slate-100 max-w-xs truncate">{e.description}</td>
+                    <tr key={e.id} className="border-b border-slate-100 dark:border-slate-700/50 hover:bg-slate-50 dark:hover:bg-slate-700/30 transition-colors">
+                      <td className="px-5 py-3.5 text-sm text-slate-600 dark:text-slate-300">{fmtDate(e.date)}</td>
+                      <td className="px-5 py-3.5 text-sm text-slate-900 dark:text-slate-100 max-w-xs truncate">{e.description}</td>
                       <td className="px-5 py-3.5">
                         <span
                           className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold"
@@ -172,10 +173,7 @@ export default function ExpensesPage() {
                         </span>
                       </td>
                       <td className="px-5 py-3.5">
-                        <span
-                          className="inline-flex items-center gap-1.5 text-sm font-medium"
-                          style={{ color: e.user.color }}
-                        >
+                        <span className="inline-flex items-center gap-1.5 text-sm font-medium" style={{ color: e.user.color }}>
                           <span
                             className="w-5 h-5 rounded-full flex items-center justify-center text-white text-xs"
                             style={{ background: e.user.color }}
@@ -185,19 +183,19 @@ export default function ExpensesPage() {
                           {e.user.name}
                         </span>
                       </td>
-                      <td className="px-5 py-3.5 text-right text-sm font-bold text-slate-100">{fmt(e.amount)}</td>
+                      <td className="px-5 py-3.5 text-right text-sm font-bold text-slate-900 dark:text-slate-100">{fmt(e.amount)}</td>
                       <td className="px-5 py-3.5">
                         {(isAdmin || e.userId === parseInt(session.user.id)) && (
                           <div className="flex items-center gap-1 justify-end">
                             <button
                               onClick={() => { setEditExpense(e); setShowModal(true); }}
-                              className="w-8 h-8 flex items-center justify-center rounded-lg text-slate-400 hover:text-indigo-400 hover:bg-indigo-500/10 transition-colors"
+                              className="w-8 h-8 flex items-center justify-center rounded-lg text-slate-400 hover:text-indigo-500 hover:bg-indigo-50 dark:hover:bg-indigo-500/10 transition-colors"
                             >
                               <Pencil size={14} />
                             </button>
                             <button
                               onClick={() => deleteExpense(e.id)}
-                              className="w-8 h-8 flex items-center justify-center rounded-lg text-slate-400 hover:text-red-400 hover:bg-red-500/10 transition-colors"
+                              className="w-8 h-8 flex items-center justify-center rounded-lg text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10 transition-colors"
                             >
                               <Trash2 size={14} />
                             </button>
@@ -211,7 +209,7 @@ export default function ExpensesPage() {
             </div>
 
             {/* Mobile cards */}
-            <div className="sm:hidden divide-y divide-slate-700/50">
+            <div className="sm:hidden divide-y divide-slate-100 dark:divide-slate-700/50">
               {expenses.map((e) => (
                 <div key={e.id} className="px-4 py-3.5">
                   <div className="flex items-start justify-between gap-2">
@@ -223,26 +221,25 @@ export default function ExpensesPage() {
                         {e.category.icon}
                       </div>
                       <div className="min-w-0">
-                        <p className="text-sm font-semibold text-slate-100 truncate">{e.description}</p>
-                        <p className="text-xs text-slate-400 mt-0.5">
-                          {fmtDate(e.date)} ·{" "}
-                          <span style={{ color: e.user.color }}>{e.user.name}</span>
+                        <p className="text-sm font-semibold text-slate-900 dark:text-slate-100 truncate">{e.description}</p>
+                        <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                          {fmtDate(e.date)} · <span style={{ color: e.user.color }}>{e.user.name}</span>
                         </p>
                       </div>
                     </div>
                     <div className="text-right flex-shrink-0">
-                      <p className="text-sm font-bold text-slate-100">{fmt(e.amount)}</p>
+                      <p className="text-sm font-bold text-slate-900 dark:text-slate-100">{fmt(e.amount)}</p>
                       {(isAdmin || e.userId === parseInt(session.user.id)) && (
                         <div className="flex gap-1 mt-1 justify-end">
                           <button
                             onClick={() => { setEditExpense(e); setShowModal(true); }}
-                            className="text-slate-500 hover:text-indigo-400 transition-colors"
+                            className="text-slate-400 hover:text-indigo-500 transition-colors"
                           >
                             <Pencil size={13} />
                           </button>
                           <button
                             onClick={() => deleteExpense(e.id)}
-                            className="text-slate-500 hover:text-red-400 transition-colors"
+                            className="text-slate-400 hover:text-red-500 transition-colors"
                           >
                             <Trash2 size={13} />
                           </button>
