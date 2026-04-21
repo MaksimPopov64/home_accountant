@@ -10,6 +10,11 @@
   box-sizing: border-box;
 }
 
+html {
+  overflow-y: scroll;      /* reserve scrollbar space always — prevents width jump */
+  overflow-x: hidden;
+}
+
 /* Light mode (default) */
 body {
   background: #f8fafc;

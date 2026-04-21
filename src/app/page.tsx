@@ -54,8 +54,8 @@ function StatCardSkeleton({ tall = false }: { tall?: boolean }) {
         <Sk className="w-8 h-8 rounded-lg shrink-0" />
         <Sk className="h-2.5 w-16 rounded" />
       </div>
-      <Sk className="h-8 w-28 rounded-lg" />
-      {tall && <Sk className="h-3 w-24 rounded mt-2" />}
+      <Sk className="h-9 sm:h-8 w-28 rounded-lg" />
+      {tall && <Sk className="h-3.5 sm:h-3 w-24 rounded mt-2" />}
     </div>
   );
 }
@@ -248,7 +248,7 @@ export default function DashboardPage() {
                 </div>
                 <span className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Итого</span>
               </div>
-              <div className="text-2xl font-extrabold text-slate-900 dark:text-slate-100 leading-8">{fmt(data?.total ?? 0)}</div>
+              <div className="text-3xl sm:text-2xl font-extrabold text-slate-900 dark:text-slate-100 leading-9 sm:leading-8">{fmt(data?.total ?? 0)}</div>
             </div>
 
             <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl p-5 min-h-[106px]">
@@ -258,7 +258,7 @@ export default function DashboardPage() {
                 </div>
                 <span className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Категорий</span>
               </div>
-              <div className="text-2xl font-extrabold text-slate-900 dark:text-slate-100 leading-8">{data?.byCategory.length ?? 0}</div>
+              <div className="text-3xl sm:text-2xl font-extrabold text-slate-900 dark:text-slate-100 leading-9 sm:leading-8">{data?.byCategory.length ?? 0}</div>
             </div>
 
             <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl p-5 min-h-[106px]">
@@ -268,7 +268,7 @@ export default function DashboardPage() {
                 </div>
                 <span className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Участников</span>
               </div>
-              <div className="text-2xl font-extrabold text-slate-900 dark:text-slate-100 leading-8">{data?.byUser.length ?? 0}</div>
+              <div className="text-3xl sm:text-2xl font-extrabold text-slate-900 dark:text-slate-100 leading-9 sm:leading-8">{data?.byUser.length ?? 0}</div>
             </div>
           </>
         )}
@@ -291,8 +291,8 @@ export default function DashboardPage() {
               </div>
               <span className="text-xs font-semibold text-amber-600 dark:text-amber-400 uppercase tracking-wider">Прогноз</span>
             </div>
-            <div className="text-2xl font-extrabold text-slate-900 dark:text-slate-100 leading-8">{fmt(pred.projected)}</div>
-            <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">к концу месяца</p>
+            <div className="text-3xl sm:text-2xl font-extrabold text-slate-900 dark:text-slate-100 leading-9 sm:leading-8">{fmt(pred.projected)}</div>
+            <p className="text-sm sm:text-xs text-slate-500 dark:text-slate-400 mt-1">к концу месяца</p>
           </div>
 
           <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl p-5 min-h-[122px]">
@@ -302,8 +302,8 @@ export default function DashboardPage() {
               </div>
               <span className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">В день</span>
             </div>
-            <div className="text-2xl font-extrabold text-slate-900 dark:text-slate-100 leading-8">{fmt(pred.dailyRate)}</div>
-            <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">средний расход</p>
+            <div className="text-3xl sm:text-2xl font-extrabold text-slate-900 dark:text-slate-100 leading-9 sm:leading-8">{fmt(pred.dailyRate)}</div>
+            <p className="text-sm sm:text-xs text-slate-500 dark:text-slate-400 mt-1">средний расход</p>
           </div>
 
           <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl p-5 min-h-[122px]">
@@ -313,8 +313,8 @@ export default function DashboardPage() {
               </div>
               <span className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Осталось</span>
             </div>
-            <div className="text-2xl font-extrabold text-slate-900 dark:text-slate-100 leading-8">{pred.daysLeft} дн.</div>
-            <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">до конца месяца</p>
+            <div className="text-3xl sm:text-2xl font-extrabold text-slate-900 dark:text-slate-100 leading-9 sm:leading-8">{pred.daysLeft} дн.</div>
+            <p className="text-sm sm:text-xs text-slate-500 dark:text-slate-400 mt-1">до конца месяца</p>
           </div>
         </div>
       )}
@@ -336,27 +336,27 @@ export default function DashboardPage() {
                 const over = budget && c.total > budget;
                 return (
                   <div key={c.name}>
-                    <div className="flex justify-between items-center mb-1 text-sm">
-                      <span className="flex items-center gap-1.5 text-slate-800 dark:text-slate-200">
-                        <span>{c.icon}</span> {c.name}
+                    <div className="flex justify-between items-center mb-1.5 text-sm sm:text-sm">
+                      <span className="flex items-center gap-1.5 text-slate-800 dark:text-slate-200 font-medium">
+                        <span className="text-base sm:text-sm">{c.icon}</span> {c.name}
                       </span>
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-2 min-w-0 ml-2">
                         {budget && (
-                          <span className={`text-xs font-medium ${over ? "text-rose-500" : "text-slate-500 dark:text-slate-400"}`}>
+                          <span className={`text-xs font-medium whitespace-nowrap ${over ? "text-rose-500" : "text-slate-500 dark:text-slate-400"}`}>
                             {over ? `+${fmt(c.total - budget)}` : `${fmt(budget - c.total)} осталось`}
                           </span>
                         )}
-                        <span className="font-bold text-slate-900 dark:text-slate-100">{fmt(c.total)}</span>
+                        <span className="font-bold text-slate-900 dark:text-slate-100 whitespace-nowrap">{fmt(c.total)}</span>
                       </div>
                     </div>
-                    <div className="h-2 bg-slate-100 dark:bg-slate-700 rounded-full overflow-hidden">
+                    <div className="h-2.5 sm:h-2 bg-slate-100 dark:bg-slate-700 rounded-full overflow-hidden">
                       <div
                         className="h-full rounded-full transition-all duration-500"
                         style={{ width: `${pct}%`, background: over ? "#ef4444" : c.color }}
                       />
                     </div>
                     {budget && (
-                      <div className="flex justify-between text-xs text-slate-400 dark:text-slate-500 mt-0.5">
+                      <div className="flex justify-between text-xs text-slate-400 dark:text-slate-500 mt-1">
                         <span>{Math.round(pct)}%</span>
                         <span>бюджет {fmt(budget)}</span>
                       </div>
@@ -453,22 +453,22 @@ export default function DashboardPage() {
             {data.recentExpenses.map((e: Expense) => (
               <div
                 key={e.id}
-                className="flex items-center gap-3 py-2.5 px-3 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors"
+                className="flex items-center gap-3 py-3.5 sm:py-2.5 px-3 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors"
               >
                 <div
-                  className="w-9 h-9 rounded-xl flex items-center justify-center text-lg flex-shrink-0"
+                  className="w-10 h-10 sm:w-9 sm:h-9 rounded-xl flex items-center justify-center text-xl sm:text-lg flex-shrink-0"
                   style={{ background: e.category.color + "22" }}
                 >
                   {e.category.icon}
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-slate-900 dark:text-slate-100 truncate">{e.description}</p>
-                  <p className="text-xs text-slate-500 dark:text-slate-400">
+                  <p className="text-base sm:text-sm font-medium text-slate-900 dark:text-slate-100 truncate">{e.description}</p>
+                  <p className="text-sm sm:text-xs text-slate-500 dark:text-slate-400 mt-0.5">
                     {fmtDate(e.date)} ·{" "}
                     <span style={{ color: e.user.color }}>{e.user.name}</span>
                   </p>
                 </div>
-                <span className="text-sm font-bold text-slate-900 dark:text-slate-100 flex-shrink-0">{fmt(e.amount)}</span>
+                <span className="text-base sm:text-sm font-bold text-slate-900 dark:text-slate-100 flex-shrink-0">{fmt(e.amount)}</span>
               </div>
             ))}
           </div>
