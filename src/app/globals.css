@@ -10,8 +10,7 @@
   box-sizing: border-box;
 }
 
-html {
-  overflow-y: scroll;      /* reserve scrollbar space always — prevents width jump */
+body {
   overflow-x: hidden;
 }
 

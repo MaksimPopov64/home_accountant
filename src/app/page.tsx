@@ -60,18 +60,14 @@ function StatCardSkeleton({ tall = false }: { tall?: boolean }) {
   );
 }
 
-function CategoryRowSkeleton() {
+function CategoryRowSkeleton({ wide = false }: { wide?: boolean }) {
   return (
     <div>
-      <div className="flex justify-between items-start mb-1.5">
-        <Sk className="h-4 w-28 rounded" />
-        <div className="flex flex-col items-end gap-1 ml-3 flex-shrink-0">
-          <Sk className="h-4 w-16 rounded" />
-          <Sk className="h-3 w-12 rounded" />
-        </div>
+      <div className="flex justify-between items-center mb-1.5">
+        <Sk className={`h-4 rounded ${wide ? "w-32" : "w-24"}`} />
+        <Sk className="h-4 w-14 rounded flex-shrink-0" />
       </div>
       <Sk className="h-2.5 w-full rounded-full" />
-      <Sk className="h-3 w-20 rounded ml-auto mt-1" />
     </div>
   );
 }
@@ -329,8 +325,8 @@ export default function DashboardPage() {
         <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl p-5 overflow-hidden">
           <h2 className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-4">По категориям</h2>
           {isFirstLoad ? (
-            <div className="space-y-4">
-              {[1, 2, 3, 4, 5, 6, 7].map((i) => <CategoryRowSkeleton key={i} />)}
+            <div className="space-y-3">
+              {([false, true, false, true, false] as boolean[]).map((w, i) => <CategoryRowSkeleton key={i} wide={w} />)}
             </div>
           ) : data?.byCategory.length ? (
             <div className="space-y-3">

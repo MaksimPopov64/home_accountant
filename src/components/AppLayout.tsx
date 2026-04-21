@@ -102,7 +102,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   );
 
   return (
-    <div className="flex min-h-screen">
+    <div className="flex min-h-screen w-full overflow-x-hidden">
       {/* Desktop sidebar */}
       <aside className="hidden lg:flex flex-col w-56 bg-white dark:bg-slate-800/80 border-r border-slate-200 dark:border-slate-700 fixed top-0 left-0 bottom-0 z-40">
         <SidebarContent />
@@ -128,7 +128,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       )}
 
       {/* Main */}
-      <main className="flex-1 lg:ml-56 min-h-screen">
+      <main className="flex-1 min-w-0 lg:ml-56 min-h-screen overflow-x-hidden">
         {/* Top bar (mobile) */}
         <div className="lg:hidden flex items-center justify-between px-4 py-3 bg-white/80 dark:bg-slate-800/80 border-b border-slate-200 dark:border-slate-700 sticky top-0 z-30 backdrop-blur">
           <div className="flex items-center gap-2">
