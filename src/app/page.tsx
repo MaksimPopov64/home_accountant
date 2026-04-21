@@ -62,25 +62,29 @@ function StatCardSkeleton({ tall = false }: { tall?: boolean }) {
 
 function CategoryRowSkeleton() {
   return (
-    <div className="space-y-1.5">
-      <div className="flex justify-between items-center">
-        <Sk className="h-4 w-24 rounded" />
-        <Sk className="h-4 w-16 rounded" />
+    <div>
+      <div className="flex justify-between items-start mb-1.5">
+        <Sk className="h-4 w-28 rounded" />
+        <div className="flex flex-col items-end gap-1 ml-3 flex-shrink-0">
+          <Sk className="h-4 w-16 rounded" />
+          <Sk className="h-3 w-12 rounded" />
+        </div>
       </div>
-      <Sk className="h-2 w-full rounded-full" />
+      <Sk className="h-2.5 w-full rounded-full" />
+      <Sk className="h-3 w-20 rounded ml-auto mt-1" />
     </div>
   );
 }
 
 function ExpenseRowSkeleton() {
   return (
-    <div className="flex items-center gap-3 py-2.5 px-3">
-      <Sk className="w-9 h-9 rounded-xl flex-shrink-0" />
+    <div className="flex items-center gap-3 py-3.5 sm:py-2.5 px-3">
+      <Sk className="w-10 h-10 sm:w-9 sm:h-9 rounded-xl flex-shrink-0" />
       <div className="flex-1 space-y-1.5">
-        <Sk className="h-3.5 w-3/5 rounded" />
-        <Sk className="h-3 w-2/5 rounded" />
+        <Sk className="h-4 sm:h-3.5 w-3/5 rounded" />
+        <Sk className="h-3.5 sm:h-3 w-2/5 rounded" />
       </div>
-      <Sk className="h-4 w-14 rounded flex-shrink-0" />
+      <Sk className="h-5 sm:h-4 w-16 sm:w-14 rounded flex-shrink-0" />
     </div>
   );
 }
@@ -320,13 +324,13 @@ export default function DashboardPage() {
       )}
 
       {/* Charts row */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 mb-6">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 mb-6 min-w-0">
         {/* By Category */}
-        <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl p-5">
+        <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl p-5 overflow-hidden">
           <h2 className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-4">По категориям</h2>
           {isFirstLoad ? (
             <div className="space-y-4">
-              {[1, 2, 3, 4].map((i) => <CategoryRowSkeleton key={i} />)}
+              {[1, 2, 3, 4, 5, 6, 7].map((i) => <CategoryRowSkeleton key={i} />)}
             </div>
           ) : data?.byCategory.length ? (
             <div className="space-y-3">
@@ -336,29 +340,29 @@ export default function DashboardPage() {
                 const over = budget && c.total > budget;
                 return (
                   <div key={c.name}>
-                    <div className="flex justify-between items-center mb-1.5 text-sm sm:text-sm">
-                      <span className="flex items-center gap-1.5 text-slate-800 dark:text-slate-200 font-medium">
-                        <span className="text-base sm:text-sm">{c.icon}</span> {c.name}
+                    <div className="flex justify-between items-start mb-1.5">
+                      <span className="flex items-center gap-1.5 text-sm font-medium text-slate-800 dark:text-slate-200 min-w-0 flex-1 mr-3">
+                        <span className="flex-shrink-0">{c.icon}</span>
+                        <span className="truncate">{c.name}</span>
                       </span>
-                      <div className="flex items-center gap-2 min-w-0 ml-2">
+                      <div className="flex flex-col items-end flex-shrink-0">
+                        <span className="text-sm font-bold text-slate-900 dark:text-slate-100">{fmt(c.total)}</span>
                         {budget && (
-                          <span className={`text-xs font-medium whitespace-nowrap ${over ? "text-rose-500" : "text-slate-500 dark:text-slate-400"}`}>
-                            {over ? `+${fmt(c.total - budget)}` : `${fmt(budget - c.total)} осталось`}
+                          <span className={`text-xs font-medium ${over ? "text-rose-500" : "text-emerald-600 dark:text-emerald-400"}`}>
+                            {over ? `+${fmt(c.total - budget)}` : `−${fmt(budget - c.total)}`}
                           </span>
                         )}
-                        <span className="font-bold text-slate-900 dark:text-slate-100 whitespace-nowrap">{fmt(c.total)}</span>
                       </div>
                     </div>
-                    <div className="h-2.5 sm:h-2 bg-slate-100 dark:bg-slate-700 rounded-full overflow-hidden">
+                    <div className="h-2.5 bg-slate-100 dark:bg-slate-700 rounded-full overflow-hidden">
                       <div
                         className="h-full rounded-full transition-all duration-500"
                         style={{ width: `${pct}%`, background: over ? "#ef4444" : c.color }}
                       />
                     </div>
                     {budget && (
-                      <div className="flex justify-between text-xs text-slate-400 dark:text-slate-500 mt-1">
-                        <span>{Math.round(pct)}%</span>
-                        <span>бюджет {fmt(budget)}</span>
+                      <div className="text-xs text-slate-400 dark:text-slate-500 mt-0.5 text-right">
+                        {Math.round(pct)}% · бюджет {fmt(budget)}
                       </div>
                     )}
                   </div>
@@ -371,7 +375,7 @@ export default function DashboardPage() {
         </div>
 
         {/* By Person */}
-        <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl p-5">
+        <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl p-5 overflow-hidden">
           <h2 className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-4">По участникам</h2>
           {isFirstLoad ? (
             <BarChartSkeleton />
@@ -399,7 +403,7 @@ export default function DashboardPage() {
       </div>
 
       {/* 6-month trend */}
-      <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl p-5 mb-6">
+      <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl p-5 mb-6 overflow-hidden">
         <h2 className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-4">Динамика за 6 месяцев</h2>
         {trendLoading ? (
           <LineChartSkeleton />
@@ -442,7 +446,7 @@ export default function DashboardPage() {
       </div>
 
       {/* Recent expenses */}
-      <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl p-5">
+      <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl p-5 overflow-hidden">
         <h2 className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-4">Последние расходы</h2>
         {isFirstLoad ? (
           <div className="space-y-1">
