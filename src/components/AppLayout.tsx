@@ -29,7 +29,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   const isAdmin = session?.user?.role === "ADMIN";
   const allNav = isAdmin ? [...NAV, ...ADMIN_NAV] : NAV;
 
-  const SidebarContent = () => (
+  const sidebarContent = (
     <>
       {/* Logo */}
       <div className="flex items-center gap-2.5 px-4 py-5 border-b border-slate-200 dark:border-slate-700">
@@ -105,7 +105,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     <div className="flex min-h-screen w-full overflow-x-hidden">
       {/* Desktop sidebar */}
       <aside className="hidden lg:flex flex-col w-56 bg-white dark:bg-slate-800/80 border-r border-slate-200 dark:border-slate-700 fixed top-0 left-0 bottom-0 z-40">
-        <SidebarContent />
+        {sidebarContent}
       </aside>
 
       {/* Mobile sidebar */}
@@ -122,7 +122,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
             >
               <X size={20} />
             </button>
-            <SidebarContent />
+            {sidebarContent}
           </aside>
         </div>
       )}

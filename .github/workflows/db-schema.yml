@@ -1,0 +1,37 @@
+# Applies prisma/schema.prisma to the Neon database when it changes on main.
+# Vercel deploys the app itself; this keeps the database schema in step with it.
+name: Database schema
+
+on:
+  push:
+    branches: [main]
+    paths: [prisma/schema.prisma]
+  workflow_dispatch:
+
+# Never run two schema changes at once
+concurrency:
+  group: neon-schema
+  cancel-in-progress: false
+
+jobs:
+  push-schema:
+    runs-on: ubuntu-latest
+    env:
+      # Direct (non-pooler) Neon connection string, set in repo Settings → Secrets → Actions
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - run: npm ci
+
+      - name: Show pending changes
+        run: npx prisma migrate diff --from-url "$DATABASE_URL" --to-schema-datamodel prisma/schema.prisma --script
+
+      # Without --accept-data-loss this fails instead of dropping columns or tables
+      - name: Apply schema
+        run: npx prisma db push --skip-generate

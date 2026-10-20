@@ -39,6 +39,12 @@ export interface Expense {
   category: Category;
 }
 
+export interface ExpensesResponse {
+  items: Expense[];
+  total: number;
+  count: number;
+}
+
 export interface TrendPoint {
   month: string;
   total: number;

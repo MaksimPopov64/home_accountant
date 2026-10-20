@@ -1,29 +1,29 @@
 export const dynamic = "force-dynamic";
 
 import { NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
-import { readFileSync } from "fs";
-import { join } from "path";
+import { prisma, PUBLIC_USER } from "@/lib/prisma";
+import { getHouseholdCtx } from "@/lib/session";
+import { todayStr } from "@/lib/dates";
 
+// JSON export of the admin's household (the database is Postgres, there is no file to copy)
 export async function GET() {
-  const session = await getServerSession(authOptions);
-  if (!session || session.user.role !== "ADMIN") {
-    return NextResponse.json({ error: "Только для администратора" }, { status: 403 });
-  }
+  const ctx = await getHouseholdCtx({ admin: true });
+  if (ctx instanceof NextResponse) return ctx;
 
-  try {
-    const dbPath = join(process.cwd(), "prisma", "dev.db");
-    const data = readFileSync(dbPath);
-    const date = new Date().toISOString().slice(0, 10);
+  const where = { householdId: ctx.householdId };
+  const [household, users, categories, expenses] = await Promise.all([
+    prisma.household.findUnique({ where: { id: ctx.householdId }, select: { id: true, name: true, createdAt: true } }),
+    prisma.user.findMany({ where, select: PUBLIC_USER }),
+    prisma.category.findMany({ where }),
+    prisma.expense.findMany({ where, orderBy: [{ date: "asc" }, { id: "asc" }] }),
+  ]);
 
-    return new NextResponse(data, {
-      headers: {
-        "Content-Type": "application/octet-stream",
-        "Content-Disposition": `attachment; filename="backup_${date}.db"`,
-      },
-    });
-  } catch {
-    return NextResponse.json({ error: "Файл базы данных не найден" }, { status: 500 });
-  }
+  const body = JSON.stringify({ exportedAt: new Date().toISOString(), household, users, categories, expenses }, null, 2);
+
+  return new NextResponse(body, {
+    headers: {
+      "Content-Type": "application/json; charset=utf-8",
+      "Content-Disposition": `attachment; filename="backup_${todayStr()}.json"`,
+    },
+  });
 }

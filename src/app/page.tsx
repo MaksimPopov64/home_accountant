@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import { Plus, TrendingDown, Users, Tag, Zap, TrendingUp, CalendarDays, Loader2 } from "lucide-react";
@@ -12,13 +12,8 @@ import AppLayout from "@/components/AppLayout";
 import ExpenseModal from "@/components/ExpenseModal";
 import { useTheme } from "@/app/providers";
 import type { Category, DashboardData, Expense, TrendPoint, User } from "@/types";
-import { monthRange, toDateStr } from "@/lib/dates";
-
-const fmt = (n: number) =>
-  new Intl.NumberFormat("ru-RU", { style: "currency", currency: "RUB", maximumFractionDigits: 0 }).format(n);
-
-const fmtDate = (s: string) =>
-  new Date(s).toLocaleDateString("ru-RU", { day: "2-digit", month: "short" });
+import { monthRange, toDateStr, todayStr } from "@/lib/dates";
+import { fmtMoney as fmt, fmtDate } from "@/lib/format";
 
 function getPeriod(type: string) {
   const now = new Date();
@@ -131,6 +126,8 @@ export default function DashboardPage() {
   const [showModal, setShowModal] = useState(false);
   const [loading, setLoading] = useState(false);
   const [trendLoading, setTrendLoading] = useState(false);
+  const [loadError, setLoadError] = useState("");
+  const requestId = useRef(0);
 
   useEffect(() => {
     if (status === "unauthenticated") router.push("/login");
@@ -140,28 +137,52 @@ export default function DashboardPage() {
     }
   }, [status, session, router]);
 
+  const hasHousehold = status === "authenticated" && !!session?.user?.householdId;
+
+  // Reference data and the trend don't depend on the period filter: load once
   useEffect(() => {
-    if (status === "authenticated") {
-      setTrendLoading(true);
-      fetch("/api/categories").then((r) => r.json()).then(setCategories);
-      fetch("/api/users").then((r) => r.json()).then(setUsers);
-      fetch("/api/analytics")
-        .then((r) => r.json())
-        .then((d) => { setTrend(d.trend ?? []); setTrendLoading(false); });
-      loadDashboard();
+    if (!hasHousehold) return;
+    fetch("/api/categories").then((r) => (r.ok ? r.json() : [])).then(setCategories);
+    fetch("/api/users").then((r) => (r.ok ? r.json() : [])).then(setUsers);
+    loadTrend();
+  }, [hasHousehold]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    if (hasHousehold) loadDashboard();
+  }, [hasHousehold, period, myOnly]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  async function loadTrend() {
+    setTrendLoading(true);
+    try {
+      const res = await fetch(`/api/analytics?today=${todayStr()}`);
+      const d = res.ok ? await res.json() : null;
+      setTrend(d?.trend ?? []);
+    } finally {
+      setTrendLoading(false);
     }
-  }, [status, period, myOnly]); // eslint-disable-line react-hooks/exhaustive-deps
+  }
 
   async function loadDashboard() {
+    const id = ++requestId.current;
     setLoading(true);
     const { from, to } = getPeriod(period);
-    const params = new URLSearchParams();
+    const params = new URLSearchParams({ today: todayStr() });
     if (from) params.set("dateFrom", from);
     if (to) params.set("dateTo", to);
     if (myOnly) params.set("myOnly", "true");
-    const res = await fetch(`/api/dashboard?${params}`);
-    setData(await res.json());
-    setLoading(false);
+    try {
+      const res = await fetch(`/api/dashboard?${params}`);
+      if (!res.ok) throw new Error();
+      const d = await res.json();
+      // Ignore stale responses when the filter changed while this one was in flight
+      if (id !== requestId.current) return;
+      setData(d);
+      setLoadError("");
+    } catch {
+      if (id === requestId.current) setLoadError("Не удалось загрузить данные. Обновите страницу.");
+    } finally {
+      if (id === requestId.current) setLoading(false);
+    }
   }
 
   if (status === "loading" || !session) return null;
@@ -224,6 +245,12 @@ export default function DashboardPage() {
           Только мои
         </label>
       </div>
+
+      {loadError && (
+        <div className="mb-6 px-4 py-3 rounded-xl bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/30 text-red-600 dark:text-red-400 text-sm">
+          {loadError}
+        </div>
+      )}
 
       {/* Stats */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
@@ -478,7 +505,7 @@ export default function DashboardPage() {
           currentUserId={parseInt(session.user.id)}
           isAdmin={session.user.role === "ADMIN"}
           onClose={() => setShowModal(false)}
-          onSave={loadDashboard}
+          onSave={() => { loadDashboard(); loadTrend(); }}
         />
       )}
     </AppLayout>

@@ -55,4 +55,6 @@ model Expense {
   user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   category    Category  @relation(fields: [categoryId], references: [id])
   household   Household @relation(fields: [householdId], references: [id])
+
+  @@index([householdId, date])
 }

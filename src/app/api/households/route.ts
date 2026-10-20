@@ -35,19 +35,6 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Вы уже состоите в семье" }, { status: 400 });
     }
 
-    const newCode = randomBytes(4).toString("hex");
-    const household = await prisma.household.create({
-      data: {
-        name: name?.trim() || "Моя семья",
-        inviteCode: newCode,
-      },
-    });
-
-    await prisma.user.update({
-      where: { id: userId },
-      data: { householdId: household.id, role: "ADMIN" },
-    });
-
     const defaultCategories = [
       { name: "Продукты", icon: "🛒", color: "#10b981" },
       { name: "Транспорт", icon: "🚗", color: "#3b82f6" },
@@ -59,11 +46,23 @@ export async function POST(req: NextRequest) {
       { name: "Прочее", icon: "📦", color: "#94a3b8" },
     ];
 
-    for (const cat of defaultCategories) {
-      await prisma.category.create({
-        data: { ...cat, householdId: household.id },
+    // One transaction: no half-created household if something fails midway
+    const household = await prisma.$transaction(async (tx) => {
+      const h = await tx.household.create({
+        data: {
+          name: name?.trim() || "Моя семья",
+          inviteCode: randomBytes(4).toString("hex"),
+        },
       });
-    }
+      await tx.user.update({
+        where: { id: userId },
+        data: { householdId: h.id, role: "ADMIN" },
+      });
+      await tx.category.createMany({
+        data: defaultCategories.map((cat) => ({ ...cat, householdId: h.id })),
+      });
+      return h;
+    });
 
     return NextResponse.json(household, { status: 201 });
   }
@@ -72,7 +71,7 @@ export async function POST(req: NextRequest) {
     const session = await getServerSession(authOptions);
     if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-    if (!inviteCode) {
+    if (!inviteCode || typeof inviteCode !== "string") {
       return NextResponse.json({ error: "Введите код приглашения" }, { status: 400 });
     }
 
@@ -85,8 +84,9 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Вы уже состоите в семье" }, { status: 400 });
     }
 
-    const household = await prisma.household.findUnique({
-      where: { inviteCode: inviteCode.trim().toLowerCase() },
+    // Case-insensitive: generated codes are lowercase hex, the legacy migration code is "DEFAULT1"
+    const household = await prisma.household.findFirst({
+      where: { inviteCode: { equals: inviteCode.trim(), mode: "insensitive" } },
     });
     if (!household) {
       return NextResponse.json({ error: "Неверный код приглашения" }, { status: 400 });
@@ -94,7 +94,7 @@ export async function POST(req: NextRequest) {
 
     await prisma.user.update({
       where: { id: userId },
-      data: { householdId: household.id },
+      data: { householdId: household.id, role: "MEMBER" },
     });
 
     return NextResponse.json(household);

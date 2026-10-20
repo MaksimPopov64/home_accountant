@@ -17,3 +17,9 @@ prisma/dev.db-journal
 
 # OS
 .DS_Store
+
+# TypeScript incremental build cache
+*.tsbuildinfo
+
+# VS Code Local History (contains copies of .env)
+.history/

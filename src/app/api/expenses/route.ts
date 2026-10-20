@@ -1,72 +1,56 @@
 export const dynamic = "force-dynamic";
 
 import { NextRequest, NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
+import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
+import { getHouseholdCtx } from "@/lib/session";
+import { parseId } from "@/lib/parse";
+import { dateFilter } from "@/lib/dates";
+import { parseExpenseInput } from "@/lib/expenseInput";
+
+const LIST_LIMIT = 300;
 
 export async function GET(req: NextRequest) {
-  const session = await getServerSession(authOptions);
-  if (!session || !session.user.householdId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const ctx = await getHouseholdCtx();
+  if (ctx instanceof NextResponse) return ctx;
 
-  const householdId = parseInt(session.user.householdId);
   const { searchParams } = new URL(req.url);
-  const userId = searchParams.get("userId");
-  const categoryId = searchParams.get("categoryId");
-  const dateFrom = searchParams.get("dateFrom");
-  const dateTo = searchParams.get("dateTo");
+  const userId = parseId(searchParams.get("userId"));
+  const categoryId = parseId(searchParams.get("categoryId"));
 
-  const where: Record<string, unknown> = { householdId };
+  const where: Prisma.ExpenseWhereInput = {
+    householdId: ctx.householdId,
+    ...(userId && { userId }),
+    ...(categoryId && { categoryId }),
+    ...dateFilter(searchParams.get("dateFrom"), searchParams.get("dateTo")),
+  };
 
-  if (userId) where.userId = parseInt(userId);
-  if (categoryId) where.categoryId = parseInt(categoryId);
-  if (dateFrom || dateTo) {
-    where.date = {};
-    if (dateFrom) (where.date as Record<string, string>).gte = dateFrom;
-    if (dateTo) (where.date as Record<string, string>).lte = dateTo;
-  }
+  // Totals come from an aggregate so they stay correct beyond the list limit
+  const [items, agg] = await Promise.all([
+    prisma.expense.findMany({
+      where,
+      include: {
+        user: { select: { id: true, name: true, color: true } },
+        category: true,
+      },
+      orderBy: [{ date: "desc" }, { createdAt: "desc" }],
+      take: LIST_LIMIT,
+    }),
+    prisma.expense.aggregate({ where, _sum: { amount: true }, _count: true }),
+  ]);
 
-  const expenses = await prisma.expense.findMany({
-    where,
-    include: {
-      user: { select: { id: true, name: true, color: true } },
-      category: true,
-    },
-    orderBy: [{ date: "desc" }, { createdAt: "desc" }],
-    take: 300,
-  });
-
-  return NextResponse.json(expenses);
+  return NextResponse.json({ items, total: agg._sum.amount ?? 0, count: agg._count });
 }
 
 export async function POST(req: NextRequest) {
-  const session = await getServerSession(authOptions);
-  if (!session || !session.user.householdId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const ctx = await getHouseholdCtx();
+  if (ctx instanceof NextResponse) return ctx;
 
-  const householdId = parseInt(session.user.householdId);
-  const body = await req.json();
-  const { amount, description, date, categoryId, userId } = body;
-
-  if (!amount || !description || !date || !categoryId || !userId) {
-    return NextResponse.json({ error: "Заполните все поля" }, { status: 400 });
-  }
-  const parsedAmount = parseFloat(amount);
-  if (isNaN(parsedAmount) || parsedAmount <= 0) {
-    return NextResponse.json({ error: "Сумма должна быть больше 0" }, { status: 400 });
-  }
-
-  // Members can only add for themselves
-  const targetUserId = session.user.role === "ADMIN" ? parseInt(userId) : parseInt(session.user.id);
+  const input = await parseExpenseInput(await req.json(), ctx, ctx.userId);
+  if ("error" in input) return NextResponse.json({ error: input.error }, { status: 400 });
 
   const expense = await prisma.expense.create({
-    data: {
-      amount: parsedAmount,
-      description: String(description).trim(),
-      date,
-      userId: targetUserId,
-      categoryId: parseInt(categoryId),
-      householdId,
-    },
+    data: { ...input.data, householdId: ctx.householdId },
     include: {
       user: { select: { id: true, name: true, color: true } },
       category: true,

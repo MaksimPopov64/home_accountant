@@ -1,24 +1,24 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import { Plus, Pencil, Trash2 } from "lucide-react";
 import AppLayout from "@/components/AppLayout";
 import ExpenseModal from "@/components/ExpenseModal";
-import type { Category, Expense, User } from "@/types";
+import type { Category, Expense, ExpensesResponse, User } from "@/types";
+import { fmtMoney as fmt, fmtDate as fmtDateBase } from "@/lib/format";
 
-const fmt = (n: number) =>
-  new Intl.NumberFormat("ru-RU", { style: "currency", currency: "RUB", maximumFractionDigits: 0 }).format(n);
-
-const fmtDate = (s: string) =>
-  new Date(s).toLocaleDateString("ru-RU", { day: "2-digit", month: "long" });
+const fmtDate = (s: string) => fmtDateBase(s, "long");
 
 export default function ExpensesPage() {
   const { data: session, status } = useSession();
   const router = useRouter();
 
   const [expenses, setExpenses] = useState<Expense[]>([]);
+  const [summary, setSummary] = useState({ total: 0, count: 0 });
+  const [loadError, setLoadError] = useState("");
+  const requestId = useRef(0);
   const [categories, setCategories] = useState<Category[]>([]);
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
@@ -35,33 +35,50 @@ export default function ExpensesPage() {
     if (status === "unauthenticated") router.push("/login");
   }, [status, router]);
 
+  // Reference data doesn't depend on filters: load once
   useEffect(() => {
-    if (status === "authenticated") {
-      fetch("/api/categories").then((r) => r.json()).then(setCategories);
-      fetch("/api/users").then((r) => r.json()).then(setUsers);
-      loadExpenses();
-    }
+    if (status !== "authenticated") return;
+    fetch("/api/categories").then((r) => (r.ok ? r.json() : [])).then(setCategories);
+    fetch("/api/users").then((r) => (r.ok ? r.json() : [])).then(setUsers);
+  }, [status]);
+
+  useEffect(() => {
+    if (status === "authenticated") loadExpenses();
   }, [status, filterUser, filterCat, filterFrom, filterTo]); // eslint-disable-line react-hooks/exhaustive-deps
 
   async function loadExpenses() {
+    const id = ++requestId.current;
     setLoading(true);
     const params = new URLSearchParams();
     if (filterUser) params.set("userId", filterUser);
     if (filterCat)  params.set("categoryId", filterCat);
     if (filterFrom) params.set("dateFrom", filterFrom);
     if (filterTo)   params.set("dateTo", filterTo);
-    const res = await fetch(`/api/expenses?${params}`);
-    setExpenses(await res.json());
-    setLoading(false);
+    try {
+      const res = await fetch(`/api/expenses?${params}`);
+      if (!res.ok) throw new Error();
+      const d: ExpensesResponse = await res.json();
+      // Ignore stale responses when filters changed while this one was in flight
+      if (id !== requestId.current) return;
+      setExpenses(d.items);
+      setSummary({ total: d.total, count: d.count });
+      setLoadError("");
+    } catch {
+      if (id === requestId.current) setLoadError("Не удалось загрузить расходы. Обновите страницу.");
+    } finally {
+      if (id === requestId.current) setLoading(false);
+    }
   }
 
   async function deleteExpense(id: number) {
     if (!confirm("Удалить расход?")) return;
-    await fetch(`/api/expenses/${id}`, { method: "DELETE" });
+    const res = await fetch(`/api/expenses/${id}`, { method: "DELETE" });
+    if (!res.ok) {
+      const d = await res.json().catch(() => ({}));
+      alert(d.error || "Не удалось удалить расход");
+    }
     loadExpenses();
   }
-
-  const totalFiltered = expenses.reduce((s, e) => s + e.amount, 0);
 
   if (status === "loading" || !session) return null;
 
@@ -73,10 +90,11 @@ export default function ExpensesPage() {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6">
         <div>
           <h1 className="text-xl font-bold text-slate-900 dark:text-slate-100">Расходы</h1>
-          {expenses.length > 0 && (
+          {summary.count > 0 && (
             <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">
-              {expenses.length} записей · итого{" "}
-              <span className="font-semibold text-slate-800 dark:text-slate-200">{fmt(totalFiltered)}</span>
+              {summary.count} записей · итого{" "}
+              <span className="font-semibold text-slate-800 dark:text-slate-200">{fmt(summary.total)}</span>
+              {summary.count > expenses.length && ` · показаны последние ${expenses.length}`}
             </p>
           )}
         </div>
@@ -134,6 +152,12 @@ export default function ExpensesPage() {
           </button>
         )}
       </div>
+
+      {loadError && (
+        <div className="mb-5 px-4 py-3 rounded-xl bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/30 text-red-600 dark:text-red-400 text-sm">
+          {loadError}
+        </div>
+      )}
 
       {/* Table */}
       <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl overflow-hidden">

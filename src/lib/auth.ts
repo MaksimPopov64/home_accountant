@@ -17,7 +17,7 @@ export const authOptions: NextAuthOptions = {
         if (!credentials?.email || !credentials?.password) return null;
 
         const user = await prisma.user.findUnique({
-          where: { email: credentials.email.toLowerCase() },
+          where: { email: credentials.email.toLowerCase().trim() },
         });
         if (!user) return null;
 
@@ -36,25 +36,38 @@ export const authOptions: NextAuthOptions = {
     }),
   ],
   callbacks: {
-    async jwt({ token, user, trigger, session }) {
-      if (user) {
-        token.id = user.id;
-        token.role = (user as { role: string }).role;
-        token.color = (user as { color: string }).color;
-        token.householdId = (user as { householdId: string | null }).householdId;
+    async jwt({ token, user }) {
+      if (user) token.id = user.id;
+
+      // Re-read the user on every session check so role, household and profile
+      // changes (and deletions) take effect immediately instead of living in a stale JWT.
+      let dbUser;
+      try {
+        dbUser = await prisma.user.findUnique({
+          where: { id: parseInt(token.id) },
+          select: { name: true, email: true, role: true, color: true, householdId: true },
+        });
+      } catch {
+        return token; // DB hiccup: keep the current token rather than logging the user out
       }
-      if (trigger === "update" && session) {
-        if (session.householdId !== undefined) token.householdId = session.householdId;
-        if (session.role !== undefined) token.role = session.role;
-      }
+      // Throwing makes next-auth clear the session cookie
+      if (!dbUser) throw new Error("User no longer exists");
+
+      token.name = dbUser.name;
+      token.email = dbUser.email;
+      token.role = dbUser.role;
+      token.color = dbUser.color;
+      token.householdId = dbUser.householdId ? String(dbUser.householdId) : null;
       return token;
     },
     async session({ session, token }) {
       if (session.user) {
-        session.user.id = token.id as string;
-        session.user.role = token.role as string;
-        session.user.color = token.color as string;
-        session.user.householdId = token.householdId as string;
+        session.user.id = token.id;
+        session.user.name = token.name ?? "";
+        session.user.email = token.email ?? "";
+        session.user.role = token.role;
+        session.user.color = token.color;
+        session.user.householdId = token.householdId;
       }
       return session;
     },

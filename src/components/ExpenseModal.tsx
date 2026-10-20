@@ -21,31 +21,19 @@ const labelCls = "block text-xs font-semibold text-slate-600 dark:text-slate-400
 export default function ExpenseModal({
   expense, categories, users, currentUserId, isAdmin, onClose, onSave,
 }: Props) {
-  const today = todayStr();
-
-  const [amount, setAmount] = useState("");
-  const [description, setDescription] = useState("");
-  const [date, setDate] = useState(today);
-  const [categoryId, setCategoryId] = useState("");
-  const [userId, setUserId] = useState(String(currentUserId));
+  // The modal is mounted fresh on every open, so props seed the form once
+  const [amount, setAmount] = useState(expense ? String(expense.amount) : "");
+  const [description, setDescription] = useState(expense?.description ?? "");
+  const [date, setDate] = useState(expense?.date ?? todayStr());
+  const [categoryId, setCategoryId] = useState(expense ? String(expense.categoryId) : "");
+  const [userId, setUserId] = useState(String(expense?.userId ?? currentUserId));
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
+  // Categories may still be loading when the modal opens
   useEffect(() => {
-    if (expense) {
-      setAmount(String(expense.amount));
-      setDescription(expense.description);
-      setDate(expense.date);
-      setCategoryId(String(expense.categoryId));
-      setUserId(String(expense.userId));
-    } else {
-      setAmount("");
-      setDescription("");
-      setDate(today);
-      setCategoryId(categories[0] ? String(categories[0].id) : "");
-      setUserId(String(currentUserId));
-    }
-  }, [expense, categories, currentUserId, today]);
+    if (!categoryId && categories[0]) setCategoryId(String(categories[0].id));
+  }, [categories, categoryId]);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();

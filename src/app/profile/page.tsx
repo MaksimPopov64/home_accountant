@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import { Save, KeyRound, Palette } from "lucide-react";
@@ -25,10 +25,13 @@ export default function ProfilePage() {
   const [confirm, setConfirm] = useState("");
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState<{ text: string; ok: boolean } | null>(null);
+  const initialized = useRef(false);
 
   useEffect(() => {
     if (status === "unauthenticated") router.push("/login");
-    if (session?.user) {
+    // Fill the form once: the session refetches on window focus and would wipe unsaved edits
+    if (session?.user && !initialized.current) {
+      initialized.current = true;
       setName(session.user.name || "");
       setEmail(session.user.email || "");
       setColor(session.user.color || "#6366f1");
@@ -50,7 +53,7 @@ export default function ProfilePage() {
         body: JSON.stringify(body),
       });
       if (!res.ok) { const d = await res.json(); throw new Error(d.error || "Ошибка"); }
-      await update({ name, color });
+      await update(); // the jwt callback re-reads the profile from the DB
       setPassword(""); setConfirm("");
       setMsg({ text: "Профиль обновлён", ok: true });
     } catch (err) {

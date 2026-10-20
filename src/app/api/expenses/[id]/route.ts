@@ -1,52 +1,35 @@
 export const dynamic = "force-dynamic";
 
 import { NextRequest, NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { getHouseholdCtx, type HouseholdCtx } from "@/lib/session";
+import { parseId } from "@/lib/parse";
+import { parseExpenseInput } from "@/lib/expenseInput";
 
-export async function PUT(req: NextRequest, { params }: { params: { id: string } }) {
-  const session = await getServerSession(authOptions);
-  if (!session || !session.user.householdId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-
-  const householdId = parseInt(session.user.householdId);
-
-  // findFirst ensures the expense belongs to this household
-  const expense = await prisma.expense.findFirst({
-    where: { id: parseInt(params.id), householdId },
-  });
+// Loads an expense the caller may modify: same household, and owner unless admin.
+async function findEditable(ctx: HouseholdCtx, rawId: string) {
+  const id = parseId(rawId);
+  const expense = id ? await prisma.expense.findFirst({ where: { id, householdId: ctx.householdId } }) : null;
   if (!expense) return NextResponse.json({ error: "Не найден" }, { status: 404 });
-
-  // Only admin or owner can edit
-  if (session.user.role !== "ADMIN" && expense.userId !== parseInt(session.user.id)) {
+  if (!ctx.isAdmin && expense.userId !== ctx.userId) {
     return NextResponse.json({ error: "Нет доступа" }, { status: 403 });
   }
+  return expense;
+}
 
-  const { amount, description, date, categoryId } = await req.json();
+export async function PUT(req: NextRequest, { params }: { params: { id: string } }) {
+  const ctx = await getHouseholdCtx();
+  if (ctx instanceof NextResponse) return ctx;
 
-  const parsedAmount = parseFloat(amount);
-  const parsedCategoryId = parseInt(categoryId);
-  if (!amount || isNaN(parsedAmount) || parsedAmount <= 0) {
-    return NextResponse.json({ error: "Сумма должна быть больше 0" }, { status: 400 });
-  }
-  if (!description || !String(description).trim()) {
-    return NextResponse.json({ error: "Описание обязательно" }, { status: 400 });
-  }
-  if (!date) {
-    return NextResponse.json({ error: "Дата обязательна" }, { status: 400 });
-  }
-  if (!categoryId || isNaN(parsedCategoryId)) {
-    return NextResponse.json({ error: "Категория обязательна" }, { status: 400 });
-  }
+  const expense = await findEditable(ctx, params.id);
+  if (expense instanceof NextResponse) return expense;
+
+  const input = await parseExpenseInput(await req.json(), ctx, expense.userId);
+  if ("error" in input) return NextResponse.json({ error: input.error }, { status: 400 });
 
   const updated = await prisma.expense.update({
-    where: { id: parseInt(params.id) },
-    data: {
-      amount: parsedAmount,
-      description: String(description).trim(),
-      date,
-      categoryId: parsedCategoryId,
-    },
+    where: { id: expense.id },
+    data: input.data,
     include: {
       user: { select: { id: true, name: true, color: true } },
       category: true,
@@ -57,20 +40,12 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
 }
 
 export async function DELETE(_req: NextRequest, { params }: { params: { id: string } }) {
-  const session = await getServerSession(authOptions);
-  if (!session || !session.user.householdId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const ctx = await getHouseholdCtx();
+  if (ctx instanceof NextResponse) return ctx;
 
-  const householdId = parseInt(session.user.householdId);
+  const expense = await findEditable(ctx, params.id);
+  if (expense instanceof NextResponse) return expense;
 
-  const expense = await prisma.expense.findFirst({
-    where: { id: parseInt(params.id), householdId },
-  });
-  if (!expense) return NextResponse.json({ error: "Не найден" }, { status: 404 });
-
-  if (session.user.role !== "ADMIN" && expense.userId !== parseInt(session.user.id)) {
-    return NextResponse.json({ error: "Нет доступа" }, { status: 403 });
-  }
-
-  await prisma.expense.delete({ where: { id: parseInt(params.id) } });
+  await prisma.expense.delete({ where: { id: expense.id } });
   return new NextResponse(null, { status: 204 });
 }

@@ -20,6 +20,14 @@ const labelCls = "block text-xs font-semibold text-slate-600 dark:text-slate-400
 const fmtCurrency = (n: number) =>
   new Intl.NumberFormat("ru-RU", { style: "currency", currency: "RUB", maximumFractionDigits: 0 }).format(n);
 
+async function deleteOrAlert(url: string) {
+  const res = await fetch(url, { method: "DELETE" });
+  if (!res.ok) {
+    const d = await res.json().catch(() => ({}));
+    alert(d.error || "Не удалось удалить");
+  }
+}
+
 export default function AdminPage() {
   const { data: session, status } = useSession();
   const router = useRouter();
@@ -51,11 +59,11 @@ export default function AdminPage() {
     if (status === "authenticated" && session?.user.role === "ADMIN") {
       loadUsers(); loadCategories(); loadHousehold();
     }
-  }, [status, session]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [status, session?.user.role]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const loadHousehold = () => fetch("/api/households").then(r => r.json()).then(setHousehold);
-  const loadUsers = () => fetch("/api/users").then(r => r.json()).then(setUsers);
-  const loadCategories = () => fetch("/api/categories").then(r => r.json()).then(setCategories);
+  const loadHousehold = () => fetch("/api/households").then(r => r.ok ? r.json() : null).then(setHousehold);
+  const loadUsers = () => fetch("/api/users").then(r => r.ok ? r.json() : []).then(setUsers);
+  const loadCategories = () => fetch("/api/categories").then(r => r.ok ? r.json() : []).then(setCategories);
 
   function openAddUser() {
     setEditUser(null);
@@ -84,7 +92,7 @@ export default function AdminPage() {
   }
   async function deleteUser(id: number) {
     if (!confirm("Удалить участника и все его расходы?")) return;
-    await fetch(`/api/users/${id}`, { method: "DELETE" }); loadUsers();
+    await deleteOrAlert(`/api/users/${id}`); loadUsers();
   }
 
   function openAddCat() {
@@ -115,7 +123,7 @@ export default function AdminPage() {
   }
   async function deleteCat(id: number) {
     if (!confirm("Удалить категорию?")) return;
-    await fetch(`/api/categories/${id}`, { method: "DELETE" }); loadCategories();
+    await deleteOrAlert(`/api/categories/${id}`); loadCategories();
   }
 
   if (status === "loading" || !session) return null;

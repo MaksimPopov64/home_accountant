@@ -1,35 +1,45 @@
 export const dynamic = "force-dynamic";
 
-import { NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
+import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { getHouseholdCtx } from "@/lib/session";
+import { isDateStr, monthRange, parseDateStr } from "@/lib/dates";
 
-export async function GET() {
-  const session = await getServerSession(authOptions);
-  if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+export async function GET(req: NextRequest) {
+  const ctx = await getHouseholdCtx();
+  if (ctx instanceof NextResponse) return ctx;
 
-  const now = new Date();
-  const trend = [];
+  const todayParam = new URL(req.url).searchParams.get("today");
+  const now = isDateStr(todayParam) ? parseDateStr(todayParam) : new Date();
 
-  for (let i = 5; i >= 0; i--) {
-    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+  const months = Array.from({ length: 6 }, (_, i) => new Date(now.getFullYear(), now.getMonth() - 5 + i, 1));
+  const from = monthRange(months[0].getFullYear(), months[0].getMonth()).from;
+  const to = monthRange(now.getFullYear(), now.getMonth()).to;
+
+  // One grouped query instead of six full scans
+  const sums = await prisma.expense.groupBy({
+    by: ["date"],
+    where: { householdId: ctx.householdId, date: { gte: from, lte: to } },
+    _sum: { amount: true },
+  });
+
+  const byMonth = new Map<string, number>();
+  for (const s of sums) {
+    const key = s.date.slice(0, 7);
+    byMonth.set(key, (byMonth.get(key) ?? 0) + (s._sum.amount ?? 0));
+  }
+
+  const trend = months.map((d) => {
     const year = d.getFullYear();
     const month = d.getMonth();
-    const from = `${year}-${String(month + 1).padStart(2, "0")}-01`;
-    const lastDay = new Date(year, month + 1, 0).getDate();
-    const to = `${year}-${String(month + 1).padStart(2, "0")}-${String(lastDay).padStart(2, "0")}`;
-
-    const expenses = await prisma.expense.findMany({
-      where: { date: { gte: from, lte: to } },
-      select: { amount: true },
-    });
-
-    const total = expenses.reduce((s, e) => s + e.amount, 0);
-    const monthName = d.toLocaleString("ru-RU", { month: "short" });
-
-    trend.push({ month: monthName, total: Math.round(total), year, monthIndex: month });
-  }
+    const key = monthRange(year, month).from.slice(0, 7);
+    return {
+      month: d.toLocaleString("ru-RU", { month: "short" }),
+      total: Math.round(byMonth.get(key) ?? 0),
+      year,
+      monthIndex: month,
+    };
+  });
 
   return NextResponse.json({ trend });
 }

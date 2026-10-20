@@ -16,37 +16,24 @@ const DEFAULT_CATEGORIES = [
 ];
 
 async function main() {
-  const existingHousehold = await prisma.household.findFirst();
-  let householdId: number;
-
-  if (existingHousehold) {
-    householdId = existingHousehold.id;
-    console.log("✅ Household already exists");
-  } else {
-    const inviteCode = randomBytes(4).toString("hex");
-    const household = await prisma.household.create({
-      data: { name: "Моя семья", inviteCode },
-    });
-    householdId = household.id;
-    console.log(`✅ Household created: ${inviteCode}`);
+  // Seed only an empty database. Re-running against live data used to move every
+  // user without a household into the first household and resurrect deleted categories.
+  if (await prisma.household.count()) {
+    console.log("✅ Database already has data, nothing to seed");
+    return;
   }
 
-  const existingUsers = await prisma.user.findMany();
-  const usersWithoutHousehold = existingUsers.filter(u => !u.householdId);
-  for (const user of usersWithoutHousehold) {
-    await prisma.user.update({ where: { id: user.id }, data: { householdId } });
-  }
-  if (usersWithoutHousehold.length > 0) {
-    console.log(`✅ Assigned ${usersWithoutHousehold.length} users to household`);
-  }
+  const inviteCode = randomBytes(4).toString("hex");
+  const household = await prisma.household.create({
+    data: { name: "Моя семья", inviteCode },
+  });
+  const householdId = household.id;
+  console.log(`✅ Household created: ${inviteCode}`);
 
-  for (const cat of DEFAULT_CATEGORIES) {
-    await prisma.category.upsert({
-      where: { name_householdId: { name: cat.name, householdId } },
-      update: {},
-      create: { ...cat, householdId },
-    });
-  }
+  await prisma.category.createMany({
+    data: DEFAULT_CATEGORIES.map((cat) => ({ ...cat, householdId })),
+    skipDuplicates: true,
+  });
 
   const adminExists = await prisma.user.findFirst({ where: { role: "ADMIN" } });
   if (!adminExists) {

@@ -1,75 +1,69 @@
 export const dynamic = "force-dynamic";
 
 import { NextRequest, NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
+import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
-import { monthRange } from "@/lib/dates";
+import { getHouseholdCtx } from "@/lib/session";
+import { dateFilter, isDateStr, monthRange, parseDateStr, todayStr } from "@/lib/dates";
 
 export async function GET(req: NextRequest) {
-  const session = await getServerSession(authOptions);
-  if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const ctx = await getHouseholdCtx();
+  if (ctx instanceof NextResponse) return ctx;
 
   const { searchParams } = new URL(req.url);
   const dateFrom = searchParams.get("dateFrom");
   const dateTo = searchParams.get("dateTo");
   const myOnly = searchParams.get("myOnly") === "true";
+  // Client's local date: the server runs in UTC, the family doesn't
+  const todayParam = searchParams.get("today");
+  const today = isDateStr(todayParam) ? todayParam : todayStr();
 
-  const where: Record<string, unknown> = {};
-  if (myOnly) where.userId = parseInt(session.user.id);
-  if (dateFrom || dateTo) {
-    where.date = {};
-    if (dateFrom) (where.date as Record<string, string>).gte = dateFrom;
-    if (dateTo) (where.date as Record<string, string>).lte = dateTo;
-  }
+  const where: Prisma.ExpenseWhereInput = {
+    householdId: ctx.householdId,
+    ...(myOnly && { userId: ctx.userId }),
+    ...dateFilter(dateFrom, dateTo),
+  };
 
-  const expenses = await prisma.expense.findMany({
-    where,
-    include: {
-      user: { select: { id: true, name: true, color: true } },
-      category: true,
-    },
-    orderBy: [{ date: "desc" }],
-    take: 1000,
-  });
+  // Aggregate in the database instead of loading every row
+  const [catSums, userSums, categories, users, recentExpenses] = await Promise.all([
+    prisma.expense.groupBy({ by: ["categoryId"], where, _sum: { amount: true } }),
+    prisma.expense.groupBy({ by: ["userId"], where, _sum: { amount: true } }),
+    prisma.category.findMany({ where: { householdId: ctx.householdId } }),
+    prisma.user.findMany({ where: { householdId: ctx.householdId }, select: { id: true, name: true, color: true } }),
+    prisma.expense.findMany({
+      where,
+      include: {
+        user: { select: { id: true, name: true, color: true } },
+        category: true,
+      },
+      orderBy: [{ date: "desc" }, { createdAt: "desc" }],
+      take: 10,
+    }),
+  ]);
 
-  const total = expenses.reduce((s, e) => s + e.amount, 0);
+  const catById = new Map(categories.map((c) => [c.id, c]));
+  const byCategory = catSums
+    .flatMap((s) => {
+      const c = catById.get(s.categoryId);
+      return c
+        ? [{ name: c.name, icon: c.icon, color: c.color, monthlyBudget: c.monthlyBudget, total: s._sum.amount ?? 0 }]
+        : [];
+    })
+    .sort((a, b) => b.total - a.total);
 
-  // By category
-  const catMap = new Map<number, { name: string; icon: string; color: string; monthlyBudget: number | null; total: number }>();
-  for (const e of expenses) {
-    const existing = catMap.get(e.categoryId);
-    if (existing) {
-      existing.total += e.amount;
-    } else {
-      catMap.set(e.categoryId, {
-        name: e.category.name,
-        icon: e.category.icon,
-        color: e.category.color,
-        monthlyBudget: e.category.monthlyBudget,
-        total: e.amount,
-      });
-    }
-  }
-  const byCategory = [...catMap.values()].sort((a, b) => b.total - a.total);
+  const userById = new Map(users.map((u) => [u.id, u]));
+  const byUser = userSums
+    .flatMap((s) => {
+      const u = userById.get(s.userId);
+      return u ? [{ name: u.name, color: u.color, total: s._sum.amount ?? 0 }] : [];
+    })
+    .sort((a, b) => b.total - a.total);
 
-  // By user
-  const userMap = new Map<number, { name: string; color: string; total: number }>();
-  for (const e of expenses) {
-    const existing = userMap.get(e.userId);
-    if (existing) {
-      existing.total += e.amount;
-    } else {
-      userMap.set(e.userId, { name: e.user.name, color: e.user.color, total: e.amount });
-    }
-  }
-  const byUser = [...userMap.values()].sort((a, b) => b.total - a.total);
+  const total = byCategory.reduce((s, c) => s + c.total, 0);
 
-  const recentExpenses = expenses.slice(0, 10);
-
-  // Prediction (only meaningful for current month range)
+  // Prediction (only meaningful for the current calendar month)
   let prediction: { dailyRate: number; projected: number; daysLeft: number } | undefined;
-  const now = new Date();
+  const now = parseDateStr(today);
   const currentMonth = monthRange(now.getFullYear(), now.getMonth());
   const isCurrentMonth = dateFrom === currentMonth.from && dateTo === currentMonth.to;
 
