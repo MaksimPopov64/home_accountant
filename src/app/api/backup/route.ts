@@ -11,14 +11,15 @@ export async function GET() {
   if (ctx instanceof NextResponse) return ctx;
 
   const where = { householdId: ctx.householdId };
-  const [household, users, categories, expenses] = await Promise.all([
+  const [household, users, categories, expenses, recurring] = await Promise.all([
     prisma.household.findUnique({ where: { id: ctx.householdId }, select: { id: true, name: true, createdAt: true } }),
     prisma.user.findMany({ where, select: PUBLIC_USER }),
     prisma.category.findMany({ where }),
     prisma.expense.findMany({ where, orderBy: [{ date: "asc" }, { id: "asc" }] }),
+    prisma.recurringExpense.findMany({ where }),
   ]);
 
-  const body = JSON.stringify({ exportedAt: new Date().toISOString(), household, users, categories, expenses }, null, 2);
+  const body = JSON.stringify({ exportedAt: new Date().toISOString(), household, users, categories, expenses, recurring }, null, 2);
 
   return new NextResponse(body, {
     headers: {

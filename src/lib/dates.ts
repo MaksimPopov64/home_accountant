@@ -23,6 +23,12 @@ export function isDateStr(s: unknown): s is string {
   return typeof s === "string" && /^\d{4}-\d{2}-\d{2}$/.test(s) && toDateStr(parseDateStr(s)) === s;
 }
 
+// The client's local date from ?today=, falling back to the server's (which runs in UTC)
+export function clientToday(params: URLSearchParams): string {
+  const t = params.get("today");
+  return isDateStr(t) ? t : todayStr();
+}
+
 // First and last day of a calendar month (month is 0-based, may overflow).
 export function monthRange(year: number, month: number): { from: string; to: string } {
   return {

@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { signIn, useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import { Wallet, LogIn, Plus, ArrowRight, Eye, EyeOff } from "lucide-react";
+import { readLocal, writeLocal } from "@/lib/storage";
 
 type Mode = "signup" | "select" | "create" | "join";
 
@@ -23,7 +24,10 @@ export default function RegisterPage() {
 
   // household fields
   const [householdName, setHouseholdName] = useState("");
-  const [inviteCode, setInviteCode] = useState("");
+  // Code from an invite link (/join?code=…), remembered across sign-up and sign-in
+  const [pendingInvite] = useState(() => (typeof window === "undefined" ? null : readLocal("pendingInvite")));
+  const [inviteCode, setInviteCode] = useState(pendingInvite ?? "");
+  const householdStep: Mode = pendingInvite ? "join" : "select";
 
   useEffect(() => {
     if (status === "authenticated") {
@@ -32,7 +36,7 @@ export default function RegisterPage() {
         router.push("/");
       } else {
         // logged in but no household — go to household setup
-        setMode("select");
+        setMode(householdStep);
       }
     }
     // unauthenticated → stay on signup step
@@ -58,7 +62,7 @@ export default function RegisterPage() {
       const result = await signIn("credentials", { email, password, redirect: false });
       if (result?.error) throw new Error("Ошибка входа после регистрации");
 
-      setMode("select");
+      setMode(householdStep);
     } catch (err) {
       setError((err as Error).message);
     } finally {
@@ -107,6 +111,7 @@ export default function RegisterPage() {
         throw new Error(d.error);
       }
       const household = await res.json();
+      writeLocal("pendingInvite", null);
       await update({ householdId: String(household.id), role: "MEMBER" });
       router.push("/");
     } catch (err) {
@@ -138,6 +143,11 @@ export default function RegisterPage() {
               ? "Шаг 1 из 2 — данные аккаунта"
               : "Шаг 2 из 2 — настройка семьи"}
           </p>
+          {pendingInvite && mode === "signup" && (
+            <p className="mt-3 px-3 py-2 rounded-xl bg-indigo-500/10 border border-indigo-500/30 text-indigo-300 text-sm">
+              Вас пригласили в семью. Зарегистрируйтесь или войдите — код приглашения уже подставлен.
+            </p>
+          )}
         </div>
 
         {/* Step 1: Signup */}

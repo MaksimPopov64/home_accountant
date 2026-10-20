@@ -1,19 +1,41 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { Suspense, useCallback, useEffect, useRef, useState } from "react";
 import { useSession } from "next-auth/react";
-import { useRouter } from "next/navigation";
-import { Plus, Pencil, Trash2 } from "lucide-react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { Plus, Pencil, Trash2, Search, Download, X } from "lucide-react";
 import AppLayout from "@/components/AppLayout";
 import ExpenseModal from "@/components/ExpenseModal";
 import type { Category, Expense, ExpensesResponse, User } from "@/types";
+import { todayStr } from "@/lib/dates";
 import { fmtMoney as fmt, fmtDate as fmtDateBase } from "@/lib/format";
 
 const fmtDate = (s: string) => fmtDateBase(s, "long");
 
+const PAGE_SIZE = 50;
+const UNDO_MS = 5000;
+
+const fieldCls = "bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-200 rounded-xl px-3 py-2 text-sm";
+
+interface PendingDelete {
+  expense: Expense;
+  index: number;
+  timer: ReturnType<typeof setTimeout>;
+}
+
+// useSearchParams needs a Suspense boundary in the app router
 export default function ExpensesPage() {
+  return (
+    <Suspense fallback={null}>
+      <ExpensesContent />
+    </Suspense>
+  );
+}
+
+function ExpensesContent() {
   const { data: session, status } = useSession();
   const router = useRouter();
+  const searchParams = useSearchParams();
 
   const [expenses, setExpenses] = useState<Expense[]>([]);
   const [summary, setSummary] = useState({ total: 0, count: 0 });
@@ -22,14 +44,21 @@ export default function ExpensesPage() {
   const [categories, setCategories] = useState<Category[]>([]);
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
 
-  const [filterUser, setFilterUser] = useState("");
-  const [filterCat, setFilterCat] = useState("");
-  const [filterFrom, setFilterFrom] = useState("");
-  const [filterTo, setFilterTo] = useState("");
+  // Filters start from the URL so the dashboard can link straight into a category
+  const [filterUser, setFilterUser] = useState(() => searchParams.get("userId") ?? "");
+  const [filterCat, setFilterCat] = useState(() => searchParams.get("categoryId") ?? "");
+  const [filterFrom, setFilterFrom] = useState(() => searchParams.get("dateFrom") ?? "");
+  const [filterTo, setFilterTo] = useState(() => searchParams.get("dateTo") ?? "");
+  const [search, setSearch] = useState(() => searchParams.get("q") ?? "");
+  const [query, setQuery] = useState(search);
 
   const [editExpense, setEditExpense] = useState<Expense | null>(null);
   const [showModal, setShowModal] = useState(false);
+
+  const pending = useRef<PendingDelete | null>(null);
+  const [undoItem, setUndoItem] = useState<Expense | null>(null);
 
   useEffect(() => {
     if (status === "unauthenticated") router.push("/login");
@@ -42,22 +71,69 @@ export default function ExpensesPage() {
     fetch("/api/users").then((r) => (r.ok ? r.json() : [])).then(setUsers);
   }, [status]);
 
+  // Debounce typing in the search box
   useEffect(() => {
-    if (status === "authenticated") loadExpenses();
-  }, [status, filterUser, filterCat, filterFrom, filterTo]); // eslint-disable-line react-hooks/exhaustive-deps
+    const t = setTimeout(() => setQuery(search.trim()), 300);
+    return () => clearTimeout(t);
+  }, [search]);
 
-  async function loadExpenses() {
-    const id = ++requestId.current;
-    setLoading(true);
+  const filterParams = useCallback(() => {
     const params = new URLSearchParams();
     if (filterUser) params.set("userId", filterUser);
     if (filterCat)  params.set("categoryId", filterCat);
     if (filterFrom) params.set("dateFrom", filterFrom);
     if (filterTo)   params.set("dateTo", filterTo);
+    if (query)      params.set("q", query);
+    return params;
+  }, [filterUser, filterCat, filterFrom, filterTo, query]);
+
+  // A deletion waiting for its undo window must reach the server before the list is re-read
+  const flushPending = useCallback(async (keepalive = false) => {
+    const p = pending.current;
+    if (!p) return;
+    clearTimeout(p.timer);
+    pending.current = null;
+    setUndoItem(null);
+    const res = await fetch(`/api/expenses/${p.expense.id}`, { method: "DELETE", keepalive }).catch(() => null);
+    if (!res?.ok && !keepalive) {
+      const d = await res?.json().catch(() => ({}));
+      alert(d?.error || "Не удалось удалить расход");
+    }
+  }, []);
+
+  // Leaving the page commits the pending deletion
+  useEffect(() => {
+    const onHide = () => { flushPending(true); };
+    window.addEventListener("pagehide", onHide);
+    return () => {
+      window.removeEventListener("pagehide", onHide);
+      flushPending(true);
+    };
+  }, [flushPending]);
+
+  useEffect(() => {
+    if (status !== "authenticated") return;
+    const qs = filterParams().toString();
+    router.replace(qs ? `/expenses?${qs}` : "/expenses", { scroll: false });
+    loadExpenses();
+  }, [status, filterParams]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  async function fetchPage(offset: number): Promise<ExpensesResponse> {
+    const params = filterParams();
+    params.set("offset", String(offset));
+    params.set("limit", String(PAGE_SIZE));
+    params.set("today", todayStr());
+    const res = await fetch(`/api/expenses?${params}`);
+    if (!res.ok) throw new Error();
+    return res.json();
+  }
+
+  async function loadExpenses() {
+    const id = ++requestId.current;
+    setLoading(true);
     try {
-      const res = await fetch(`/api/expenses?${params}`);
-      if (!res.ok) throw new Error();
-      const d: ExpensesResponse = await res.json();
+      await flushPending();
+      const d = await fetchPage(0);
       // Ignore stale responses when filters changed while this one was in flight
       if (id !== requestId.current) return;
       setExpenses(d.items);
@@ -70,19 +146,54 @@ export default function ExpensesPage() {
     }
   }
 
-  async function deleteExpense(id: number) {
-    if (!confirm("Удалить расход?")) return;
-    const res = await fetch(`/api/expenses/${id}`, { method: "DELETE" });
-    if (!res.ok) {
-      const d = await res.json().catch(() => ({}));
-      alert(d.error || "Не удалось удалить расход");
+  async function loadMore() {
+    const id = requestId.current;
+    setLoadingMore(true);
+    try {
+      await flushPending();
+      const d = await fetchPage(expenses.length);
+      if (id !== requestId.current) return;
+      setExpenses((list) => {
+        const seen = new Set(list.map((e) => e.id));
+        return [...list, ...d.items.filter((e) => !seen.has(e.id))];
+      });
+      setSummary({ total: d.total, count: d.count });
+    } catch {
+      setLoadError("Не удалось загрузить расходы. Обновите страницу.");
+    } finally {
+      setLoadingMore(false);
     }
-    loadExpenses();
+  }
+
+  // Hide right away, delete on the server after the undo window
+  function deleteExpense(e: Expense) {
+    flushPending();
+    const index = expenses.findIndex((x) => x.id === e.id);
+    setExpenses((list) => list.filter((x) => x.id !== e.id));
+    setSummary((s) => ({ total: s.total - e.amount, count: s.count - 1 }));
+    const timer = setTimeout(() => { flushPending(); }, UNDO_MS);
+    pending.current = { expense: e, index, timer };
+    setUndoItem(e);
+  }
+
+  function undoDelete() {
+    const p = pending.current;
+    if (!p) return;
+    clearTimeout(p.timer);
+    pending.current = null;
+    setUndoItem(null);
+    setExpenses((list) => {
+      const copy = [...list];
+      copy.splice(Math.min(p.index, copy.length), 0, p.expense);
+      return copy;
+    });
+    setSummary((s) => ({ total: s.total + p.expense.amount, count: s.count + 1 }));
   }
 
   if (status === "loading" || !session) return null;
 
   const isAdmin = session.user.role === "ADMIN";
+  const hasFilters = !!(filterUser || filterCat || filterFrom || filterTo || search);
 
   return (
     <AppLayout>
@@ -94,25 +205,44 @@ export default function ExpensesPage() {
             <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">
               {summary.count} записей · итого{" "}
               <span className="font-semibold text-slate-800 dark:text-slate-200">{fmt(summary.total)}</span>
-              {summary.count > expenses.length && ` · показаны последние ${expenses.length}`}
             </p>
           )}
         </div>
-        <button
-          onClick={() => { setEditExpense(null); setShowModal(true); }}
-          className="flex items-center gap-2 px-4 py-2 rounded-xl bg-indigo-500 hover:bg-indigo-600 text-white text-sm font-semibold transition-colors shadow-lg shadow-indigo-500/20"
-        >
-          <Plus size={17} />
-          Добавить расход
-        </button>
+        <div className="flex gap-2">
+          <a
+            href={`/api/expenses/export?${filterParams()}`}
+            download
+            className="flex items-center gap-2 px-4 py-2 rounded-xl bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 text-sm font-semibold transition-colors"
+            title="Скачать для Excel (CSV) с учётом фильтров"
+          >
+            <Download size={16} /> Excel
+          </a>
+          <button
+            onClick={() => { setEditExpense(null); setShowModal(true); }}
+            className="flex-1 sm:flex-none flex items-center justify-center gap-2 px-4 py-2 rounded-xl bg-indigo-500 hover:bg-indigo-600 text-white text-sm font-semibold transition-colors shadow-lg shadow-indigo-500/20"
+          >
+            <Plus size={17} />
+            Добавить расход
+          </button>
+        </div>
       </div>
 
       {/* Filters */}
       <div className="grid grid-cols-2 sm:flex sm:flex-wrap gap-2 mb-5">
+        <label className={`col-span-2 flex items-center gap-2 sm:w-64 focus-within:border-indigo-500 transition-colors ${fieldCls}`}>
+          <Search size={15} className="text-slate-400 flex-shrink-0" />
+          <input
+            type="search"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Поиск по описанию"
+            className="bg-transparent outline-none min-w-0 flex-1"
+          />
+        </label>
         <select
           value={filterUser}
           onChange={(e) => setFilterUser(e.target.value)}
-          className="w-full sm:w-auto bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-200 rounded-xl px-3 py-2 text-sm"
+          className={`w-full sm:w-auto ${fieldCls}`}
         >
           <option value="">Все участники</option>
           {users.map((u) => <option key={u.id} value={u.id}>{u.name}</option>)}
@@ -120,7 +250,7 @@ export default function ExpensesPage() {
         <select
           value={filterCat}
           onChange={(e) => setFilterCat(e.target.value)}
-          className="w-full sm:w-auto bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-200 rounded-xl px-3 py-2 text-sm"
+          className={`w-full sm:w-auto ${fieldCls}`}
         >
           <option value="">Все категории</option>
           {categories.map((c) => <option key={c.id} value={c.id}>{c.icon} {c.name}</option>)}
@@ -143,9 +273,9 @@ export default function ExpensesPage() {
             className="bg-transparent text-slate-800 dark:text-slate-200 text-sm outline-none min-w-0 flex-1"
           />
         </label>
-        {(filterUser || filterCat || filterFrom || filterTo) && (
+        {hasFilters && (
           <button
-            onClick={() => { setFilterUser(""); setFilterCat(""); setFilterFrom(""); setFilterTo(""); }}
+            onClick={() => { setFilterUser(""); setFilterCat(""); setFilterFrom(""); setFilterTo(""); setSearch(""); }}
             className="col-span-2 sm:col-span-1 px-3 py-2 rounded-xl text-sm text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 transition-colors"
           >
             Сбросить
@@ -166,7 +296,7 @@ export default function ExpensesPage() {
         ) : expenses.length === 0 ? (
           <div className="text-center py-16">
             <div className="text-4xl mb-3">📭</div>
-            <p className="text-slate-500 dark:text-slate-400">Расходов нет</p>
+            <p className="text-slate-500 dark:text-slate-400">{hasFilters ? "Ничего не найдено" : "Расходов нет"}</p>
           </div>
         ) : (
           <>
@@ -218,7 +348,7 @@ export default function ExpensesPage() {
                               <Pencil size={14} />
                             </button>
                             <button
-                              onClick={() => deleteExpense(e.id)}
+                              onClick={() => deleteExpense(e)}
                               className="w-8 h-8 flex items-center justify-center rounded-lg text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10 transition-colors"
                             >
                               <Trash2 size={14} />
@@ -262,7 +392,7 @@ export default function ExpensesPage() {
                             <Pencil size={13} />
                           </button>
                           <button
-                            onClick={() => deleteExpense(e.id)}
+                            onClick={() => deleteExpense(e)}
                             className="text-slate-400 hover:text-red-500 transition-colors"
                           >
                             <Trash2 size={13} />
@@ -277,6 +407,30 @@ export default function ExpensesPage() {
           </>
         )}
       </div>
+
+      {!loading && expenses.length < summary.count && (
+        <div className="flex justify-center mt-4">
+          <button
+            onClick={loadMore}
+            disabled={loadingMore}
+            className="px-5 py-2.5 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-sm font-semibold text-slate-700 dark:text-slate-200 hover:border-indigo-500 disabled:opacity-60 transition-colors"
+          >
+            {loadingMore ? "Загрузка…" : `Показать ещё (${summary.count - expenses.length})`}
+          </button>
+        </div>
+      )}
+
+      {undoItem && (
+        <div className="fixed bottom-4 inset-x-4 sm:inset-x-auto sm:left-1/2 sm:-translate-x-1/2 sm:min-w-[320px] z-50 flex items-center gap-3 px-4 py-3 rounded-xl bg-slate-900 dark:bg-slate-700 text-white shadow-2xl animate-pop-in">
+          <span className="text-sm flex-1 min-w-0 truncate">Удалено: {undoItem.description}</span>
+          <button onClick={undoDelete} className="text-sm font-bold text-indigo-300 hover:text-indigo-200 flex-shrink-0">
+            Отменить
+          </button>
+          <button onClick={() => { flushPending(); }} className="text-slate-400 hover:text-white flex-shrink-0" aria-label="Закрыть">
+            <X size={16} />
+          </button>
+        </div>
+      )}
 
       {showModal && (
         <ExpenseModal

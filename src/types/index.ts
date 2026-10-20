@@ -48,6 +48,32 @@ export interface ExpensesResponse {
 export interface TrendPoint {
   month: string;
   total: number;
+  year: number;
+  monthIndex: number;
+}
+
+export interface RecurringExpense {
+  id: number;
+  amount: number;
+  description: string;
+  dayOfMonth: number;
+  lastGenerated: string;
+  userId: number;
+  categoryId: number;
+  user: Pick<User, "id" | "name" | "color">;
+  category: Category;
+}
+
+export interface Suggestion {
+  description: string;
+  categoryId: number;
+}
+
+export interface Comparison {
+  from: string;
+  to: string;
+  partial: boolean;
+  total: number;
 }
 
 export interface Prediction {
@@ -58,10 +84,11 @@ export interface Prediction {
 
 export interface DashboardData {
   total: number;
-  byCategory: { name: string; icon: string; color: string; total: number; monthlyBudget?: number | null }[];
+  byCategory: { id: number; name: string; icon: string; color: string; total: number; monthlyBudget?: number | null }[];
   byUser: { name: string; color: string; total: number }[];
   recentExpenses: Expense[];
   prediction?: Prediction;
+  comparison?: Comparison;
 }
 
 // Extend next-auth types

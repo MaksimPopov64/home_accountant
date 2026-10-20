@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
-import { Plus, Pencil, Trash2, Download, Users, Tag, ShieldCheck, Copy, Check } from "lucide-react";
+import { Plus, Pencil, Trash2, Download, Users, Tag, ShieldCheck, Copy, Check, Share2 } from "lucide-react";
 import AppLayout from "@/components/AppLayout";
 import type { Category, User } from "@/types";
 
@@ -37,6 +37,7 @@ export default function AdminPage() {
   const [categories, setCategories] = useState<Category[]>([]);
   const [household, setHousehold] = useState<Household | null>(null);
   const [copied, setCopied] = useState(false);
+  const [linkCopied, setLinkCopied] = useState(false);
 
   const [editUser, setEditUser] = useState<User | null>(null);
   const [showUserForm, setShowUserForm] = useState(false);
@@ -64,6 +65,25 @@ export default function AdminPage() {
   const loadHousehold = () => fetch("/api/households").then(r => r.ok ? r.json() : null).then(setHousehold);
   const loadUsers = () => fetch("/api/users").then(r => r.ok ? r.json() : []).then(setUsers);
   const loadCategories = () => fetch("/api/categories").then(r => r.ok ? r.json() : []).then(setCategories);
+
+  const inviteLink = household ? `${window.location.origin}/join?code=${household.inviteCode}` : "";
+
+  // Native share sheet on phones, clipboard elsewhere
+  async function shareInvite() {
+    if (!household) return;
+    const text = `Присоединяйся к семье «${household.name}» в Семейном бюджете`;
+    if (navigator.share) {
+      try {
+        await navigator.share({ title: "Семейный бюджет", text, url: inviteLink });
+        return;
+      } catch (err) {
+        if ((err as Error).name === "AbortError") return;
+      }
+    }
+    await navigator.clipboard.writeText(inviteLink);
+    setLinkCopied(true);
+    setTimeout(() => setLinkCopied(false), 2000);
+  }
 
   function openAddUser() {
     setEditUser(null);
@@ -155,10 +175,10 @@ export default function AdminPage() {
           </a>
           {household && (
             <button
-              onClick={() => { navigator.clipboard.writeText(household.inviteCode); setCopied(true); setTimeout(() => setCopied(false), 2000); }}
+              onClick={shareInvite}
               className="flex items-center gap-2 px-4 py-2 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 text-amber-600 dark:text-amber-400 text-sm font-semibold transition-colors"
             >
-              {copied ? <Check size={16} /> : <Copy size={16} />} Код: {household.inviteCode}
+              {linkCopied ? <Check size={16} /> : <Share2 size={16} />} {linkCopied ? "Ссылка скопирована" : "Пригласить"}
             </button>
           )}
         </div>
@@ -224,6 +244,22 @@ export default function AdminPage() {
                 className="p-3 rounded-xl bg-indigo-500 hover:bg-indigo-600 text-white transition-colors"
               >
                 {copied ? <Check size={18} /> : <Copy size={18} />}
+              </button>
+            </div>
+          </div>
+          <div className="p-5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl">
+            <h3 className="text-sm font-semibold text-slate-700 dark:text-slate-300 mb-3">Ссылка-приглашение</h3>
+            <p className="text-xs text-slate-500 dark:text-slate-400 mb-3">Отправьте её — по ссылке человек зарегистрируется и сразу попадёт в вашу семью</p>
+            <div className="flex items-center gap-3">
+              <code className="flex-1 min-w-0 truncate px-4 py-3 bg-slate-50 dark:bg-slate-900 rounded-xl font-mono text-sm text-indigo-600 dark:text-indigo-400">
+                {inviteLink}
+              </code>
+              <button
+                onClick={shareInvite}
+                className="p-3 rounded-xl bg-indigo-500 hover:bg-indigo-600 text-white transition-colors"
+                aria-label="Поделиться ссылкой"
+              >
+                {linkCopied ? <Check size={18} /> : <Share2 size={18} />}
               </button>
             </div>
           </div>

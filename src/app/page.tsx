@@ -3,7 +3,10 @@
 import React, { useEffect, useRef, useState } from "react";
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
-import { Plus, TrendingDown, Users, Tag, Zap, TrendingUp, CalendarDays, Loader2 } from "lucide-react";
+import Link from "next/link";
+import {
+  Plus, TrendingDown, Users, Tag, Zap, TrendingUp, CalendarDays, Loader2, ChevronLeft, ChevronRight, AlertTriangle,
+} from "lucide-react";
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell,
   LineChart, Line, CartesianGrid, ReferenceLine,
@@ -12,20 +15,42 @@ import AppLayout from "@/components/AppLayout";
 import ExpenseModal from "@/components/ExpenseModal";
 import { useTheme } from "@/app/providers";
 import type { Category, DashboardData, Expense, TrendPoint, User } from "@/types";
-import { monthRange, toDateStr, todayStr } from "@/lib/dates";
+import { monthRange, parseDateStr, toDateStr, todayStr } from "@/lib/dates";
 import { fmtMoney as fmt, fmtDate } from "@/lib/format";
 
-function getPeriod(type: string) {
+type Period = { kind: "month"; year: number; month: number } | { kind: "year"; year: number };
+
+const MONTHS = [
+  "Январь", "Февраль", "Март", "Апрель", "Май", "Июнь",
+  "Июль", "Август", "Сентябрь", "Октябрь", "Ноябрь", "Декабрь",
+];
+
+function currentPeriod(kind: Period["kind"] = "month"): Period {
   const now = new Date();
-  if (type === "month") return monthRange(now.getFullYear(), now.getMonth());
-  if (type === "prev_month") return monthRange(now.getFullYear(), now.getMonth() - 1);
-  if (type === "year") {
-    return {
-      from: toDateStr(new Date(now.getFullYear(), 0, 1)),
-      to: toDateStr(new Date(now.getFullYear(), 11, 31)),
-    };
-  }
-  return { from: "", to: "" };
+  return kind === "month"
+    ? { kind, year: now.getFullYear(), month: now.getMonth() }
+    : { kind, year: now.getFullYear() };
+}
+
+function periodRange(p: Period) {
+  return p.kind === "month"
+    ? monthRange(p.year, p.month)
+    : { from: toDateStr(new Date(p.year, 0, 1)), to: toDateStr(new Date(p.year, 11, 31)) };
+}
+
+function shiftPeriod(p: Period, delta: number): Period {
+  if (p.kind === "year") return { kind: "year", year: p.year + delta };
+  const d = new Date(p.year, p.month + delta, 1);
+  return { kind: "month", year: d.getFullYear(), month: d.getMonth() };
+}
+
+const periodLabel = (p: Period) => (p.kind === "month" ? `${MONTHS[p.month]} ${p.year}` : `${p.year} год`);
+
+// While a month is in progress it is compared with the same days of the previous one
+function comparisonLabel(c: { to: string; partial: boolean }) {
+  if (!c.partial) return "к прошлому месяцу";
+  const to = parseDateStr(c.to).toLocaleDateString("ru-RU", { day: "numeric", month: "long" });
+  return `к 1–${to}`;
 }
 
 // ── Skeleton primitives ──────────────────────────────────────────────────
@@ -117,7 +142,7 @@ export default function DashboardPage() {
   const router = useRouter();
   const { theme } = useTheme();
 
-  const [period, setPeriod] = useState("month");
+  const [period, setPeriod] = useState<Period>(() => currentPeriod());
   const [myOnly, setMyOnly] = useState(false);
   const [data, setData] = useState<DashboardData | null>(null);
   const [trend, setTrend] = useState<TrendPoint[]>([]);
@@ -147,6 +172,13 @@ export default function DashboardPage() {
     loadTrend();
   }, [hasHousehold]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Home-screen shortcut "Добавить расход" opens /?add=1
+  useEffect(() => {
+    if (!hasHousehold || !window.location.search.includes("add=1")) return;
+    setShowModal(true);
+    router.replace("/");
+  }, [hasHousehold, router]);
+
   useEffect(() => {
     if (hasHousehold) loadDashboard();
   }, [hasHousehold, period, myOnly]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -165,7 +197,7 @@ export default function DashboardPage() {
   async function loadDashboard() {
     const id = ++requestId.current;
     setLoading(true);
-    const { from, to } = getPeriod(period);
+    const { from, to } = periodRange(period);
     const params = new URLSearchParams({ today: todayStr() });
     if (from) params.set("dateFrom", from);
     if (to) params.set("dateTo", to);
@@ -192,6 +224,32 @@ export default function DashboardPage() {
 
   const maxCat = data?.byCategory[0]?.total || 1;
   const pred = data?.prediction;
+  const cmp = data?.comparison;
+  const cmpPct = cmp && cmp.total > 0 && data ? Math.round(((data.total - cmp.total) / cmp.total) * 100) : null;
+
+  const isMonthView = period.kind === "month";
+  const now = currentPeriod(period.kind);
+  const atPresent = periodRange(period).from >= periodRange(now).from;
+  const isCurrentMonth = isMonthView && atPresent;
+  const range = periodRange(period);
+
+  // Budgets are monthly, so warnings and budget bars only make sense in month view
+  const budgetAlerts = isMonthView
+    ? (data?.byCategory ?? []).filter((c) => c.monthlyBudget && c.total >= c.monthlyBudget * 0.8)
+    : [];
+
+  const categoryHref = (categoryId: number) => {
+    const q = new URLSearchParams({ categoryId: String(categoryId), dateFrom: range.from, dateTo: range.to });
+    if (myOnly) q.set("userId", session!.user.id);
+    return `/expenses?${q}`;
+  };
+
+  const segBtn = (active: boolean) =>
+    `px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+      active
+        ? "bg-indigo-500 text-white"
+        : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100"
+    }`;
 
   const isDark = theme === "dark";
   const tipBg = isDark ? "#1e293b" : "#ffffff";
@@ -226,15 +284,38 @@ export default function DashboardPage() {
 
       {/* Filters */}
       <div className="flex flex-wrap items-center gap-2 mb-6">
-        <select
-          value={period}
-          onChange={(e) => setPeriod(e.target.value)}
-          className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-200 rounded-xl px-3 py-2 text-sm"
-        >
-          <option value="month">Этот месяц</option>
-          <option value="prev_month">Прошлый месяц</option>
-          <option value="year">Этот год</option>
-        </select>
+        <div className="flex items-center bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl">
+          <button
+            onClick={() => setPeriod(shiftPeriod(period, -1))}
+            className="w-9 h-9 flex items-center justify-center rounded-l-xl text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
+            aria-label="Предыдущий период"
+          >
+            <ChevronLeft size={18} />
+          </button>
+          <span className="min-w-[132px] text-center text-sm font-semibold text-slate-800 dark:text-slate-200 select-none">
+            {periodLabel(period)}
+          </span>
+          <button
+            onClick={() => setPeriod(shiftPeriod(period, 1))}
+            disabled={atPresent}
+            className="w-9 h-9 flex items-center justify-center rounded-r-xl text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 hover:bg-slate-100 dark:hover:bg-slate-700 disabled:opacity-30 disabled:pointer-events-none transition-colors"
+            aria-label="Следующий период"
+          >
+            <ChevronRight size={18} />
+          </button>
+        </div>
+        <div className="flex gap-0.5 p-0.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl">
+          <button onClick={() => setPeriod(currentPeriod("month"))} className={segBtn(isMonthView)}>Месяц</button>
+          <button onClick={() => setPeriod(currentPeriod("year"))} className={segBtn(!isMonthView)}>Год</button>
+        </div>
+        {!atPresent && (
+          <button
+            onClick={() => setPeriod(currentPeriod(period.kind))}
+            className="px-3 py-2 rounded-xl text-sm text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-500/10 transition-colors"
+          >
+            {isMonthView ? "К текущему месяцу" : "К текущему году"}
+          </button>
+        )}
         <label className="flex items-center gap-2 px-3 py-2 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-sm text-slate-700 dark:text-slate-300 cursor-pointer hover:border-indigo-500 transition-colors">
           <input
             type="checkbox"
@@ -252,11 +333,40 @@ export default function DashboardPage() {
         </div>
       )}
 
+      {budgetAlerts.length > 0 && (
+        <div className="mb-6 px-4 py-3 rounded-xl bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/30 text-sm">
+          <div className="flex items-center gap-2 font-semibold text-amber-700 dark:text-amber-400 mb-1.5">
+            <AlertTriangle size={16} /> Бюджет на исходе
+          </div>
+          <ul className="space-y-1">
+            {budgetAlerts.map((c) => {
+              const budget = c.monthlyBudget!;
+              const over = c.total > budget;
+              return (
+                <li key={c.id}>
+                  <Link href={categoryHref(c.id)} className="text-slate-700 dark:text-slate-300 hover:underline">
+                    {c.icon} {c.name}:{" "}
+                    {over ? (
+                      <span className="text-rose-600 dark:text-rose-400 font-semibold">превышен на {fmt(c.total - budget)}</span>
+                    ) : (
+                      <>
+                        {Math.round((c.total / budget) * 100)}% бюджета, осталось{" "}
+                        <span className="font-semibold">{fmt(budget - c.total)}</span>
+                      </>
+                    )}
+                  </Link>
+                </li>
+              );
+            })}
+          </ul>
+        </div>
+      )}
+
       {/* Stats */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
         {isFirstLoad ? (
           <>
-            <StatCardSkeleton />
+            <StatCardSkeleton tall={isMonthView} />
             <StatCardSkeleton />
             <StatCardSkeleton />
           </>
@@ -270,6 +380,18 @@ export default function DashboardPage() {
                 <span className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Итого</span>
               </div>
               <div className="text-3xl sm:text-2xl font-extrabold text-slate-900 dark:text-slate-100 leading-9 sm:leading-8">{fmt(data?.total ?? 0)}</div>
+              {isMonthView && (
+                <p className="text-sm sm:text-xs mt-1 h-5 sm:h-4 text-slate-500 dark:text-slate-400">
+                  {cmp && cmpPct !== null && (
+                    <>
+                      <span className={cmpPct > 0 ? "text-rose-500 font-semibold" : "text-emerald-600 dark:text-emerald-400 font-semibold"}>
+                        {cmpPct > 0 ? "+" : cmpPct < 0 ? "−" : "±"}{Math.abs(cmpPct)}%
+                      </span>{" "}
+                      {comparisonLabel(cmp)}
+                    </>
+                  )}
+                </p>
+              )}
             </div>
 
             <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl p-5 min-h-[106px]">
@@ -296,7 +418,7 @@ export default function DashboardPage() {
       </div>
 
       {/* Prediction row — current month only */}
-      {isFirstLoad && period === "month" && (
+      {isFirstLoad && isCurrentMonth && (
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
           <StatCardSkeleton tall />
           <StatCardSkeleton tall />
@@ -350,13 +472,19 @@ export default function DashboardPage() {
               {([false, true, false, true, false] as boolean[]).map((w, i) => <CategoryRowSkeleton key={i} wide={w} />)}
             </div>
           ) : data?.byCategory.length ? (
-            <div className="space-y-3">
+            <div className="space-y-1">
               {data.byCategory.map((c) => {
-                const budget = c.monthlyBudget;
-                const pct = budget ? Math.min((c.total / budget) * 100, 100) : (c.total / maxCat) * 100;
+                const budget = isMonthView ? c.monthlyBudget : null;
+                const usedPct = budget ? (c.total / budget) * 100 : 0;
+                const pct = budget ? Math.min(usedPct, 100) : (c.total / maxCat) * 100;
                 const over = budget && c.total > budget;
                 return (
-                  <div key={c.name}>
+                  <Link
+                    key={c.id}
+                    href={categoryHref(c.id)}
+                    className="block -mx-2 px-2 py-1.5 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-700/40 transition-colors"
+                    title="Показать расходы этой категории"
+                  >
                     <div className="flex justify-between items-start mb-1.5">
                       <span className="flex items-center gap-1.5 text-sm font-medium text-slate-800 dark:text-slate-200 min-w-0 flex-1 mr-3">
                         <span className="flex-shrink-0">{c.icon}</span>
@@ -379,10 +507,10 @@ export default function DashboardPage() {
                     </div>
                     {budget && (
                       <div className="text-xs text-slate-400 dark:text-slate-500 mt-0.5 text-right">
-                        {Math.round(pct)}% · бюджет {fmt(budget)}
+                        {Math.round(usedPct)}% · бюджет {fmt(budget)}
                       </div>
                     )}
-                  </div>
+                  </Link>
                 );
               })}
             </div>
@@ -421,12 +549,23 @@ export default function DashboardPage() {
 
       {/* 6-month trend */}
       <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl p-5 mb-6 overflow-hidden">
-        <h2 className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-4">Динамика за 6 месяцев</h2>
+        <div className="flex items-baseline justify-between gap-2 mb-4">
+          <h2 className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Динамика за 6 месяцев</h2>
+          <span className="text-xs text-slate-400 dark:text-slate-500">нажмите на месяц, чтобы открыть</span>
+        </div>
         {trendLoading ? (
           <LineChartSkeleton />
         ) : trend.length > 0 ? (
           <ResponsiveContainer width="100%" height={180}>
-            <LineChart data={trend} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
+            <LineChart
+              data={trend}
+              margin={{ top: 4, right: 8, left: 0, bottom: 0 }}
+              className="cursor-pointer"
+              onClick={(state) => {
+                const p = state?.activePayload?.[0]?.payload as TrendPoint | undefined;
+                if (p) setPeriod({ kind: "month", year: p.year, month: p.monthIndex });
+              }}
+            >
               <CartesianGrid strokeDasharray="3 3" stroke={gridColor} />
               <XAxis dataKey="month" tick={{ fill: axisColor, fontSize: 12 }} axisLine={false} tickLine={false} />
               <YAxis

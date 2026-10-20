@@ -1,6 +1,22 @@
+import type { Prisma } from "@prisma/client";
 import { prisma } from "./prisma";
-import { isDateStr } from "./dates";
+import { dateFilter, isDateStr } from "./dates";
+import { parseId } from "./parse";
 import type { HouseholdCtx } from "./session";
+
+// List/export filters from the query string, always scoped to the caller's household
+export function expenseFilter(ctx: HouseholdCtx, params: URLSearchParams): Prisma.ExpenseWhereInput {
+  const userId = parseId(params.get("userId"));
+  const categoryId = parseId(params.get("categoryId"));
+  const q = params.get("q")?.trim();
+  return {
+    householdId: ctx.householdId,
+    ...(userId && { userId }),
+    ...(categoryId && { categoryId }),
+    ...(q && { description: { contains: q, mode: "insensitive" as const } }),
+    ...dateFilter(params.get("dateFrom"), params.get("dateTo")),
+  };
+}
 
 interface ExpenseData {
   amount: number;

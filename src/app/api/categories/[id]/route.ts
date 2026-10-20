@@ -49,11 +49,20 @@ export async function DELETE(_req: NextRequest, { params }: { params: { id: stri
   const existing = await findOwn(ctx, params.id);
   if (existing instanceof NextResponse) return existing;
 
-  // Expense.category has no cascade: deleting a used category would fail with a FK error
-  const used = await prisma.expense.count({ where: { categoryId: existing.id } });
+  // Expense/RecurringExpense.category have no cascade: deleting a used category would fail with a FK error
+  const [used, rules] = await Promise.all([
+    prisma.expense.count({ where: { categoryId: existing.id } }),
+    prisma.recurringExpense.count({ where: { categoryId: existing.id } }),
+  ]);
   if (used > 0) {
     return NextResponse.json(
       { error: `В категории ${used} расход(ов). Сначала перенесите их в другую категорию.` },
+      { status: 409 },
+    );
+  }
+  if (rules > 0) {
+    return NextResponse.json(
+      { error: `Категория используется в регулярных расходах (${rules}). Сначала измените или удалите их.` },
       { status: 409 },
     );
   }

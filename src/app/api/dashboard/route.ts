@@ -4,7 +4,8 @@ import { NextRequest, NextResponse } from "next/server";
 import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { getHouseholdCtx } from "@/lib/session";
-import { dateFilter, isDateStr, monthRange, parseDateStr, todayStr } from "@/lib/dates";
+import { clientToday, dateFilter, monthRange, parseDateStr, toDateStr } from "@/lib/dates";
+import { materializeRecurring } from "@/lib/recurring";
 
 export async function GET(req: NextRequest) {
   const ctx = await getHouseholdCtx();
@@ -15,17 +16,38 @@ export async function GET(req: NextRequest) {
   const dateTo = searchParams.get("dateTo");
   const myOnly = searchParams.get("myOnly") === "true";
   // Client's local date: the server runs in UTC, the family doesn't
-  const todayParam = searchParams.get("today");
-  const today = isDateStr(todayParam) ? todayParam : todayStr();
+  const today = clientToday(searchParams);
 
-  const where: Prisma.ExpenseWhereInput = {
+  await materializeRecurring(ctx.householdId, today);
+
+  const base: Prisma.ExpenseWhereInput = {
     householdId: ctx.householdId,
     ...(myOnly && { userId: ctx.userId }),
-    ...dateFilter(dateFrom, dateTo),
   };
+  const where: Prisma.ExpenseWhereInput = { ...base, ...dateFilter(dateFrom, dateTo) };
+
+  // Is the range exactly one calendar month? Then compare with the month before it.
+  const now = parseDateStr(today);
+  const from = dateFrom ? parseDateStr(dateFrom) : null;
+  const month = from && monthRange(from.getFullYear(), from.getMonth());
+  const isMonth = !!month && month.from === dateFrom && month.to === dateTo;
+  const isCurrentMonth = isMonth && from!.getFullYear() === now.getFullYear() && from!.getMonth() === now.getMonth();
+
+  let prevRange: { from: string; to: string; partial: boolean } | null = null;
+  if (isMonth) {
+    const prev = monthRange(from!.getFullYear(), from!.getMonth() - 1);
+    if (isCurrentMonth) {
+      // Month in progress: compare like with like, the 1st..today of the previous month
+      const prevLast = parseDateStr(prev.to).getDate();
+      const day = Math.min(now.getDate(), prevLast);
+      prevRange = { from: prev.from, to: toDateStr(new Date(from!.getFullYear(), from!.getMonth() - 1, day)), partial: true };
+    } else {
+      prevRange = { ...prev, partial: false };
+    }
+  }
 
   // Aggregate in the database instead of loading every row
-  const [catSums, userSums, categories, users, recentExpenses] = await Promise.all([
+  const [catSums, userSums, categories, users, recentExpenses, prevAgg] = await Promise.all([
     prisma.expense.groupBy({ by: ["categoryId"], where, _sum: { amount: true } }),
     prisma.expense.groupBy({ by: ["userId"], where, _sum: { amount: true } }),
     prisma.category.findMany({ where: { householdId: ctx.householdId } }),
@@ -39,6 +61,9 @@ export async function GET(req: NextRequest) {
       orderBy: [{ date: "desc" }, { createdAt: "desc" }],
       take: 10,
     }),
+    prevRange
+      ? prisma.expense.aggregate({ where: { ...base, date: { gte: prevRange.from, lte: prevRange.to } }, _sum: { amount: true } })
+      : null,
   ]);
 
   const catById = new Map(categories.map((c) => [c.id, c]));
@@ -46,7 +71,7 @@ export async function GET(req: NextRequest) {
     .flatMap((s) => {
       const c = catById.get(s.categoryId);
       return c
-        ? [{ name: c.name, icon: c.icon, color: c.color, monthlyBudget: c.monthlyBudget, total: s._sum.amount ?? 0 }]
+        ? [{ id: c.id, name: c.name, icon: c.icon, color: c.color, monthlyBudget: c.monthlyBudget, total: s._sum.amount ?? 0 }]
         : [];
     })
     .sort((a, b) => b.total - a.total);
@@ -61,12 +86,10 @@ export async function GET(req: NextRequest) {
 
   const total = byCategory.reduce((s, c) => s + c.total, 0);
 
+  const comparison = prevRange && prevAgg ? { ...prevRange, total: prevAgg._sum.amount ?? 0 } : undefined;
+
   // Prediction (only meaningful for the current calendar month)
   let prediction: { dailyRate: number; projected: number; daysLeft: number } | undefined;
-  const now = parseDateStr(today);
-  const currentMonth = monthRange(now.getFullYear(), now.getMonth());
-  const isCurrentMonth = dateFrom === currentMonth.from && dateTo === currentMonth.to;
-
   if (isCurrentMonth && total > 0) {
     const dayOfMonth = now.getDate();
     const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
@@ -76,5 +99,5 @@ export async function GET(req: NextRequest) {
     prediction = { dailyRate: Math.round(dailyRate), projected, daysLeft };
   }
 
-  return NextResponse.json({ total, byCategory, byUser, recentExpenses, prediction });
+  return NextResponse.json({ total, byCategory, byUser, recentExpenses, prediction, comparison });
 }

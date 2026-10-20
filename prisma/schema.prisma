@@ -8,37 +8,40 @@ datasource db {
 }
 
 model Household {
-  id         Int        @id @default(autoincrement())
+  id         Int                @id @default(autoincrement())
   name       String
-  inviteCode String     @unique
-  createdAt  DateTime   @default(now())
+  inviteCode String             @unique
+  createdAt  DateTime           @default(now())
   users      User[]
   categories Category[]
   expenses   Expense[]
+  recurring  RecurringExpense[]
 }
 
 model User {
-  id          Int        @id @default(autoincrement())
+  id          Int                @id @default(autoincrement())
   name        String
-  email       String     @unique
+  email       String             @unique
   password    String
-  role        String     @default("MEMBER")
-  color       String     @default("#6366f1")
-  createdAt   DateTime   @default(now())
+  role        String             @default("MEMBER")
+  color       String             @default("#6366f1")
+  createdAt   DateTime           @default(now())
   householdId Int?
-  household   Household? @relation(fields: [householdId], references: [id])
+  household   Household?         @relation(fields: [householdId], references: [id])
   expenses    Expense[]
+  recurring   RecurringExpense[]
 }
 
 model Category {
-  id             Int       @id @default(autoincrement())
-  name           String
-  icon           String    @default("💰")
-  color          String    @default("#10b981")
-  monthlyBudget  Float?
-  householdId    Int
-  household      Household @relation(fields: [householdId], references: [id])
-  expenses       Expense[]
+  id            Int                @id @default(autoincrement())
+  name          String
+  icon          String             @default("💰")
+  color         String             @default("#10b981")
+  monthlyBudget Float?
+  householdId   Int
+  household     Household          @relation(fields: [householdId], references: [id])
+  expenses      Expense[]
+  recurring     RecurringExpense[]
 
   @@unique([name, householdId])
 }
@@ -57,4 +60,22 @@ model Expense {
   household   Household @relation(fields: [householdId], references: [id])
 
   @@index([householdId, date])
+}
+
+// Monthly template; matching expenses are created lazily when the household's data is read
+model RecurringExpense {
+  id            Int       @id @default(autoincrement())
+  amount        Float
+  description   String
+  dayOfMonth    Int
+  lastGenerated String // YYYY-MM of the latest month already turned into an expense
+  createdAt     DateTime  @default(now())
+  userId        Int
+  categoryId    Int
+  householdId   Int
+  user          User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  category      Category  @relation(fields: [categoryId], references: [id])
+  household     Household @relation(fields: [householdId], references: [id])
+
+  @@index([householdId])
 }

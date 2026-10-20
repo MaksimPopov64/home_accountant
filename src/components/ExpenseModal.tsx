@@ -2,8 +2,9 @@
 
 import { useEffect, useState } from "react";
 import { X } from "lucide-react";
-import type { Category, Expense, User } from "@/types";
+import type { Category, Expense, Suggestion, User } from "@/types";
 import { todayStr } from "@/lib/dates";
+import { readLocal, writeLocal } from "@/lib/storage";
 
 interface Props {
   expense?: Expense | null;
@@ -25,15 +26,44 @@ export default function ExpenseModal({
   const [amount, setAmount] = useState(expense ? String(expense.amount) : "");
   const [description, setDescription] = useState(expense?.description ?? "");
   const [date, setDate] = useState(expense?.date ?? todayStr());
-  const [categoryId, setCategoryId] = useState(expense ? String(expense.categoryId) : "");
+  const lastCategoryKey = `lastCategory:${currentUserId}`;
+  const defaultCategory = () => {
+    const last = readLocal(lastCategoryKey);
+    const preferred = categories.find((c) => String(c.id) === last) ?? categories[0];
+    return preferred ? String(preferred.id) : "";
+  };
+  const [categoryId, setCategoryId] = useState(() => (expense ? String(expense.categoryId) : defaultCategory()));
   const [userId, setUserId] = useState(String(expense?.userId ?? currentUserId));
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
+  // Once the user picks a category by hand, suggestions stop overriding it
+  const [categoryTouched, setCategoryTouched] = useState(!!expense);
 
-  // Categories may still be loading when the modal opens
+  // Default to the category this user picked last time; categories may still be loading on open
   useEffect(() => {
-    if (!categoryId && categories[0]) setCategoryId(String(categories[0].id));
-  }, [categories, categoryId]);
+    if (!categoryId && categories.length) setCategoryId(defaultCategory());
+  }, [categories, categoryId]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    fetch("/api/expenses/suggestions")
+      .then((r) => (r.ok ? r.json() : []))
+      .then(setSuggestions)
+      .catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose]);
+
+  function changeDescription(value: string) {
+    setDescription(value);
+    if (categoryTouched) return;
+    const match = suggestions.find((s) => s.description.toLowerCase() === value.trim().toLowerCase());
+    if (match && categories.some((c) => c.id === match.categoryId)) setCategoryId(String(match.categoryId));
+  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -48,6 +78,7 @@ export default function ExpenseModal({
         body: JSON.stringify(body),
       });
       if (!res.ok) { const d = await res.json(); throw new Error(d.error || "Ошибка"); }
+      if (!expense) writeLocal(lastCategoryKey, categoryId);
       onSave();
       onClose();
     } catch (err) {
@@ -87,6 +118,7 @@ export default function ExpenseModal({
             <label className={labelCls}>Сумма (₽)</label>
             <input
               type="number" min="0.01" step="0.01" placeholder="0.00"
+              inputMode="decimal" autoFocus={!expense}
               value={amount} onChange={(e) => setAmount(e.target.value)} required
               className={`${inputCls} text-lg font-bold`}
             />
@@ -96,9 +128,13 @@ export default function ExpenseModal({
             <label className={labelCls}>Описание</label>
             <input
               type="text" placeholder="Что куплено / за что оплачено"
-              value={description} onChange={(e) => setDescription(e.target.value)} required
+              value={description} onChange={(e) => changeDescription(e.target.value)} required
+              list="expense-suggestions" autoComplete="off"
               className={inputCls}
             />
+            <datalist id="expense-suggestions">
+              {suggestions.map((s) => <option key={s.description} value={s.description} />)}
+            </datalist>
           </div>
 
           <div>
@@ -112,7 +148,7 @@ export default function ExpenseModal({
           <div>
             <label className={labelCls}>Категория</label>
             <select
-              value={categoryId} onChange={(e) => setCategoryId(e.target.value)} required
+              value={categoryId} onChange={(e) => { setCategoryId(e.target.value); setCategoryTouched(true); }} required
               className={inputCls}
             >
               {categories.map((c) => (

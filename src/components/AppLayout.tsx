@@ -5,7 +5,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { signOut, useSession } from "next-auth/react";
 import {
-  LayoutDashboard, List, Settings, User, LogOut, Menu, X, Wallet, Sun, Moon,
+  LayoutDashboard, List, Repeat, Settings, User, LogOut, Menu, X, Wallet, Sun, Moon,
 } from "lucide-react";
 import clsx from "clsx";
 import { useTheme } from "@/app/providers";
@@ -13,6 +13,7 @@ import { useTheme } from "@/app/providers";
 const NAV = [
   { href: "/",         icon: LayoutDashboard, label: "Обзор" },
   { href: "/expenses", icon: List,             label: "Расходы" },
+  { href: "/recurring", icon: Repeat,         label: "Регулярные" },
   { href: "/profile",  icon: User,             label: "Профиль" },
 ];
 
