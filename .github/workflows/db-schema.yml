@@ -5,7 +5,7 @@ name: Database schema
 on:
   push:
     branches: [main]
-    paths: [prisma/schema.prisma]
+    paths: [prisma/schema.prisma, .github/workflows/db-schema.yml]
   workflow_dispatch:
 
 # Never run two schema changes at once
@@ -20,11 +20,11 @@ jobs:
       # Direct (non-pooler) Neon connection string, set in repo Settings → Secrets → Actions
       DATABASE_URL: ${{ secrets.DATABASE_URL }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
-          node-version: 20
+          node-version: 22
           cache: npm
 
       - run: npm ci
