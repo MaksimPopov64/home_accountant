@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { X } from "lucide-react";
 import type { Category, Expense, User } from "@/types";
+import { todayStr } from "@/lib/dates";
 
 interface Props {
   expense?: Expense | null;
@@ -20,7 +21,7 @@ const labelCls = "block text-xs font-semibold text-slate-600 dark:text-slate-400
 export default function ExpenseModal({
   expense, categories, users, currentUserId, isAdmin, onClose, onSave,
 }: Props) {
-  const today = new Date().toISOString().slice(0, 10);
+  const today = todayStr();
 
   const [amount, setAmount] = useState("");
   const [description, setDescription] = useState("");

@@ -12,6 +12,7 @@ import AppLayout from "@/components/AppLayout";
 import ExpenseModal from "@/components/ExpenseModal";
 import { useTheme } from "@/app/providers";
 import type { Category, DashboardData, Expense, TrendPoint, User } from "@/types";
+import { monthRange, toDateStr } from "@/lib/dates";
 
 const fmt = (n: number) =>
   new Intl.NumberFormat("ru-RU", { style: "currency", currency: "RUB", maximumFractionDigits: 0 }).format(n);
@@ -21,20 +22,13 @@ const fmtDate = (s: string) =>
 
 function getPeriod(type: string) {
   const now = new Date();
-  if (type === "month") {
-    const from = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().slice(0, 10);
-    const to = now.toISOString().slice(0, 10);
-    return { from, to };
-  }
-  if (type === "prev_month") {
-    const from = new Date(now.getFullYear(), now.getMonth() - 1, 1).toISOString().slice(0, 10);
-    const to = new Date(now.getFullYear(), now.getMonth(), 0).toISOString().slice(0, 10);
-    return { from, to };
-  }
+  if (type === "month") return monthRange(now.getFullYear(), now.getMonth());
+  if (type === "prev_month") return monthRange(now.getFullYear(), now.getMonth() - 1);
   if (type === "year") {
-    const from = new Date(now.getFullYear(), 0, 1).toISOString().slice(0, 10);
-    const to = now.toISOString().slice(0, 10);
-    return { from, to };
+    return {
+      from: toDateStr(new Date(now.getFullYear(), 0, 1)),
+      to: toDateStr(new Date(now.getFullYear(), 11, 31)),
+    };
   }
   return { from: "", to: "" };
 }
